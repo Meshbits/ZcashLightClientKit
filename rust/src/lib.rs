@@ -175,7 +175,7 @@ pub extern "C" fn zcashlc_init_accounts_table(
         };
 
         let extsks: Vec<_> = (0..accounts)
-            .map(|account| spending_key(&seed, NETWORK.coin_type(), AccountId(account)))
+            .map(|account| spending_key(&seed, 141, AccountId(account)))
             .collect();
         let extfvks: Vec<_> = extsks.iter().map(ExtendedFullViewingKey::from).collect();
         
@@ -273,7 +273,7 @@ pub unsafe extern "C" fn zcashlc_derive_extended_spending_keys(
         };
 
         let extsks: Vec<_> = (0..accounts)
-            .map(|account| spending_key(&seed, NETWORK.coin_type(), AccountId(account)))
+            .map(|account| spending_key(&seed, 141, AccountId(account)))
             .collect();
 
         // Return the ExtendedSpendingKeys for the created accounts.
@@ -371,7 +371,7 @@ pub unsafe extern "C" fn zcashlc_derive_unified_viewing_keys_from_seed(
 
         let uvks: Vec<_> = (0..accounts)
             .map(|account| {
-                let extfvk = ExtendedFullViewingKey::from(&spending_key(&seed, NETWORK.coin_type(), AccountId(account)));
+                let extfvk = ExtendedFullViewingKey::from(&spending_key(&seed, 141, AccountId(account)));
                 let extpub = derive_public_key_from_seed(&NETWORK, &seed, AccountId(account), 0).unwrap();
                 unified_viewing_key_new(&extfvk, &extpub)
             })
@@ -404,7 +404,7 @@ pub unsafe extern "C" fn zcashlc_derive_extended_full_viewing_keys(
 
         let extsks: Vec<_> = (0..accounts)
             .map(|account| {
-                ExtendedFullViewingKey::from(&spending_key(&seed, NETWORK.coin_type(), AccountId(account)))
+                ExtendedFullViewingKey::from(&spending_key(&seed, 141, AccountId(account)))
             })
             .collect();
 
@@ -442,7 +442,7 @@ pub unsafe extern "C" fn zcashlc_derive_shielded_address_from_seed(
         } else {
             return Err(format_err!("accounts argument must be greater than zero"));
         };
-        let address = spending_key(&seed, NETWORK.coin_type(), AccountId(account_index))
+        let address = spending_key(&seed, 141, AccountId(account_index))
             .default_address()
             .unwrap()
             .1;
