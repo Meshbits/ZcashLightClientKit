@@ -291,6 +291,8 @@ extension SDKSynchronizer {
             return "Stopped 🚫"
         case .synced:
             return "Synced 😎"
+        case .unprepared:
+            return "unknown"
         }
     }
 }
