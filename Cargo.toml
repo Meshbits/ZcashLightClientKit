@@ -49,18 +49,6 @@ zcash_client_sqlite = {git = "https://github.com/Meshbits/librustzcash", branch 
 zcash_primitives = {git = "https://github.com/Meshbits/librustzcash", branch = "shield-poc" }
 zcash_proofs = {git = "https://github.com/Meshbits/librustzcash", branch = "shield-poc" }
 
-#zcash_client_backend = {git = "https://github.com/gmale/librustzcash", branch = "autoshield-poc-daa-taddr3" }
-#zcash_client_sqlite = {git = "https://github.com/gmale/librustzcash", branch = "autoshield-poc-daa-taddr3" }
-#zcash_primitives = {git = "https://github.com/gmale/librustzcash", branch = "autoshield-poc-daa-taddr3" }
-#zcash_proofs = {git = "https://github.com/gmale/librustzcash", branch = "autoshield-poc-daa-taddr3" }
-
-#zcash_client_backend = { path = "/Users/pacu/Repos/ECC/pacu-librustzcash/zcash_client_backend" }
-#zcash_client_sqlite = { path = "/Users/pacu/Repos/ECC/pacu-librustzcash/zcash_client_sqlite" }
-#zcash_primitives = { path = "/Users/pacu/Repos/ECC/pacu-librustzcash/zcash_primitives" }
-#zcash_proofs = { path = "/Users/pacu/Repos/ECC/pacu-librustzcash/zcash_proofs" }
-
-
-
 [features]
 mainnet = ["zcash_client_sqlite/mainnet", "zcash_client_backend/transparent-inputs", "zcash_primitives/transparent-inputs"]
 testnet = ["zcash_client_backend/transparent-inputs", "zcash_primitives/transparent-inputs"]
