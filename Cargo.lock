@@ -437,6 +437,7 @@ checksum = "212d0f5754cb6769937f4501cc0e67f4f4483c8d2c3e1e922ee9edbe4ab4c7c0"
 [[package]]
 name = "equihash"
 version = "0.1.0"
+source = "git+https://github.com/Meshbits/librustzcash?branch=v050#f234f0b496e574b4d2bf15d2a6cc6f1d39debd95"
 dependencies = [
  "blake2b_simd",
  "byteorder",
@@ -1532,6 +1533,7 @@ checksum = "85e60b0d1b5f99db2556934e21937020776a5d31520bf169e851ac44e6420214"
 [[package]]
 name = "zcash_client_backend"
 version = "0.5.0"
+source = "git+https://github.com/Meshbits/librustzcash?branch=v050#f234f0b496e574b4d2bf15d2a6cc6f1d39debd95"
 dependencies = [
  "base64",
  "bech32",
@@ -1554,6 +1556,7 @@ dependencies = [
 [[package]]
 name = "zcash_client_sqlite"
 version = "0.3.0"
+source = "git+https://github.com/Meshbits/librustzcash?branch=v050#f234f0b496e574b4d2bf15d2a6cc6f1d39debd95"
 dependencies = [
  "bech32",
  "bs58 0.4.0",
@@ -1571,6 +1574,7 @@ dependencies = [
 [[package]]
 name = "zcash_primitives"
 version = "0.5.0"
+source = "git+https://github.com/Meshbits/librustzcash?branch=v050#f234f0b496e574b4d2bf15d2a6cc6f1d39debd95"
 dependencies = [
  "aes",
  "bitvec 0.18.5",
