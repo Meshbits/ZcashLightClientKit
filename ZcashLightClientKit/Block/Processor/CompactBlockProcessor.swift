@@ -696,6 +696,7 @@ public class CompactBlockProcessor {
                 LoggerProxy.error("Unable to retrieve tAddress for account 0. this is a serious problem")
                 return
             }
+            NSLog("tAddress: %s\n", tAddress)
             
             refreshUTXOs(tAddress: tAddress, startHeight: ZcashSDK.SAPLING_ACTIVATION_HEIGHT) { [weak self] r in
                 guard let self = self else {
