@@ -79,7 +79,7 @@ class SendViewController: UIViewController {
     
     
     func format(balance: Int64 = 0) -> String {
-        "Zec \(balance.asHumanReadableZecBalance())"
+        "ARRR \(balance.asHumanReadableZecBalance())"
     }
     
     func toggleSendButton() {
