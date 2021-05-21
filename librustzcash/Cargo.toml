@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "components/equihash",
+    "zcash_client_backend",
+    "zcash_client_sqlite",
+    "zcash_extensions",
+    "zcash_history",
+    "zcash_primitives",
+    "zcash_proofs",
+]
+
+[profile.release]
+lto = true
+panic = 'abort'
+codegen-units = 1
