@@ -1,3 +1,0 @@
-[submodule "librustzcash"]
-	path = librustzcash
-	url = https://github.com/Meshbits/librustzcash.git
