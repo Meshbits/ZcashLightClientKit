@@ -36,8 +36,10 @@ echo "Building Rust backend"
 echo ""
 echo "platform name"
 echo $PLATFORM_NAME
-if [ $PLATFORM_NAME = "iphonesimulator" -o $PLATFORM_NAME = "macosx" ]; then
+if [ $PLATFORM_NAME = "iphonesimulator" ]; then
     ZCASH_ACTIVE_ARCHITECTURE="x86_64-apple-ios"
+elif [ $PLATFORM_NAME = "macosx" ]; then
+    ZCASH_ACTIVE_ARCHITECTURE="aarch64-apple-ios-macabi"
 else 
     ZCASH_ACTIVE_ARCHITECTURE="aarch64-apple-ios"
 fi
