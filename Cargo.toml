@@ -44,10 +44,10 @@ crate-type = ["staticlib"]
 lto = true
 
 [patch.crates-io]
-zcash_client_backend = {git = "https://github.com/nuttycom/librustzcash", branch = "autoshield-poc-daa" }
-zcash_client_sqlite = {git = "https://github.com/nuttycom/librustzcash", branch = "autoshield-poc-daa" }
-zcash_primitives = {git = "https://github.com/nuttycom/librustzcash", branch = "autoshield-poc-daa" }
-zcash_proofs = {git = "https://github.com/nuttycom/librustzcash", branch = "autoshield-poc-daa" }
+zcash_client_backend = {git = "https://github.com/Meshbits/librustzcash", branch = "autoshield-poc-daa" }
+zcash_client_sqlite = {git = "https://github.com/Meshbits/librustzcash", branch = "autoshield-poc-daa" }
+zcash_primitives = {git = "https://github.com/Meshbits/librustzcash", branch = "autoshield-poc-daa" }
+zcash_proofs = {git = "https://github.com/Meshbits/librustzcash", branch = "autoshield-poc-daa" }
 
 [features]
 mainnet = ["zcash_client_sqlite/mainnet", "zcash_client_backend/transparent-inputs", "zcash_primitives/transparent-inputs"]
