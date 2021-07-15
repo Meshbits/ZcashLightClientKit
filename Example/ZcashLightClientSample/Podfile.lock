@@ -82,7 +82,7 @@ DEPENDENCIES:
   - gRPC-Swift (= 1.0.0)
   - gRPC-Swift-Plugins (= 1.0.0)
   - KRProgressHUD
-  - MnemonicSwift (~> 2.0.0)
+  - MnemonicSwift (from `https://github.com/zcash-hackworks/MnemonicSwift.git`, branch `master`)
   - NotificationBubbles
   - PaginatedTableView
   - ZcashLightClientKit (from `../../`)
@@ -104,7 +104,6 @@ SPEC REPOS:
     - KRActivityIndicatorView
     - KRProgressHUD
     - Logging
-    - MnemonicSwift
     - NotificationBubbles
     - PaginatedTableView
     - SQLite.swift
@@ -121,8 +120,16 @@ SPEC REPOS:
     - SwiftProtobuf
 
 EXTERNAL SOURCES:
+  MnemonicSwift:
+    :branch: master
+    :git: https://github.com/zcash-hackworks/MnemonicSwift.git
   ZcashLightClientKit:
     :path: "../../"
+
+CHECKOUT OPTIONS:
+  MnemonicSwift:
+    :commit: 714cc6e2631ac322fc0067b2302358c1baad9275
+    :git: https://github.com/zcash-hackworks/MnemonicSwift.git
 
 SPEC CHECKSUMS:
   CGRPCZlib: b0c9d704a12fa667f1824ffff20688f191945989
@@ -155,6 +162,6 @@ SPEC CHECKSUMS:
   SwiftProtobuf: 9c85136c6ba74b0a1b84279dbf0f6db8efb714e0
   ZcashLightClientKit: 98b74ede09b395f9f1505d6834ad0f85cbbb496b
 
-PODFILE CHECKSUM: ebafc363fddc87d5098890c846b9391506dabe65
+PODFILE CHECKSUM: 6bc059e3d612cb5fd7515c33f6c11e1c5add9c0c
 
 COCOAPODS: 1.10.1

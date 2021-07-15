@@ -45,6 +45,7 @@
 		0DDFB33C236B743000AED892 /* LatestHeightViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DDFB33B236B743000AED892 /* LatestHeightViewController.swift */; };
 		0DDFB33E236B844900AED892 /* DemoAppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DDFB33D236B844900AED892 /* DemoAppConfig.swift */; };
 		0DF53E6723A438F100D7249C /* PaginatedTransactionsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DF53E6623A438F100D7249C /* PaginatedTransactionsViewController.swift */; };
+		2962DE3426A048B4008A6275 /* SampleLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D49A18B241698A800CC0649 /* SampleLogger.swift */; };
 		6355F11E6389A7F4FD9F21F7 /* Pods_ZcashLightClientSample_Mainnet.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 49540782BAF7E579947E23C4 /* Pods_ZcashLightClientSample_Mainnet.framework */; };
 		742DCA7AFF9FBEA217FD3EED /* Pods_ZcashLightClientSampleUITests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 33F67E6BA5A27016288E77EB /* Pods_ZcashLightClientSampleUITests.framework */; };
 		A337DEF9CF408DD9F8C200DD /* Pods_ZcashLightClientSample.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CCCFED26DDACC4FBD997470C /* Pods_ZcashLightClientSample.framework */; };
@@ -670,6 +671,7 @@
 				0D8BB45A23B1DA0700D5E2A1 /* DemoAppConfig.swift in Sources */,
 				0D8BB45B23B1DA0700D5E2A1 /* AppDelegate.swift in Sources */,
 				0D8BB45C23B1DA0700D5E2A1 /* SampleStorage.swift in Sources */,
+				2962DE3426A048B4008A6275 /* SampleLogger.swift in Sources */,
 				0D8BB45D23B1DA0700D5E2A1 /* TransactionsDataSource.swift in Sources */,
 				0D8BB45E23B1DA0700D5E2A1 /* PaginatedTransactionsViewController.swift in Sources */,
 			);
@@ -918,7 +920,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 6J82A38BF9;
+				DEVELOPMENT_TEAM = 9TR5BMPZP3;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = "$(inherited)";
 				INFOPLIST_FILE = ZcashLightClientSample/Info.plist;
@@ -942,7 +944,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 6J82A38BF9;
+				DEVELOPMENT_TEAM = 9TR5BMPZP3;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = "$(inherited)";
 				INFOPLIST_FILE = ZcashLightClientSample/Info.plist;

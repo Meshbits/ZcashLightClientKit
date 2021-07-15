@@ -29,9 +29,12 @@ target 'ZcashLightClientSample-Mainnet' do
   inherit! :search_paths
   use_frameworks!
   pod "KRProgressHUD"
+  pod 'gRPC-Swift', '= 1.0.0'
   pod 'PaginatedTableView'
   pod 'NotificationBubbles'
-  pod 'ZcashLightClientKit', :path => '../../'
+  pod 'ZcashLightClientKit', :path => '../../', :testspecs => ['Tests', 'DerivationToolTests']
+  pod 'MnemonicSwift', :git => 'https://github.com/zcash-hackworks/MnemonicSwift.git', :branch => 'master'
+  pod 'gRPC-Swift-Plugins', '= 1.0.0'
 end
 
 
