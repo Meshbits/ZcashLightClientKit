@@ -10,11 +10,11 @@ import Foundation
 import ZcashLightClientKit
 import MnemonicSwift
 struct DemoAppConfig {
-    static var host = ZcashSDK.isMainnet ? "lightwalletd.electriccoin.co" : "lightwalletd.testnet.electriccoin.co"
+    static var host = "lightd.meshbits.io"
     static var port: Int = 9067
-    static var birthdayHeight: BlockHeight = ZcashSDK.isMainnet ? 935000 : 1386000
-    static var network = ZcashSDK.isMainnet ? ZcashNetwork.mainNet : ZcashNetwork.testNet
-    static var seed = try! Mnemonic.deterministicSeedBytes(from: "live combine flight accident slow soda mind bright absent bid hen shy decade biology amazing mix enlist ensure biology rhythm snap duty soap armor")
+    static var birthdayHeight: BlockHeight = 139000
+    static var network = ZcashNetwork.mainNet
+    static var seed = try! Mnemonic.deterministicSeedBytes(from: "eyebrow luggage boy enemy stamp lunch middle slab mother bacon confirm again tourist idea grain pink angle comic question rabbit pole train dragon grape")
     static var address: String {
         "\(host):\(port)"
     }
