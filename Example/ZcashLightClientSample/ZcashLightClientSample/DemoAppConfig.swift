@@ -10,8 +10,8 @@ import Foundation
 import ZcashLightClientKit
 import MnemonicSwift
 struct DemoAppConfig {
-    static var host = "lightd.meshbits.io"
-    static var port: Int = 9067
+    static var host = "lightd.pirate.black"
+    static var port: Int = 443
     static var birthdayHeight: BlockHeight = 139000
     static var network = ZcashNetwork.mainNet
     static var seed = try! Mnemonic.deterministicSeedBytes(from: "eyebrow luggage boy enemy stamp lunch middle slab mother bacon confirm again tourist idea grain pink angle comic question rabbit pole train dragon grape")
