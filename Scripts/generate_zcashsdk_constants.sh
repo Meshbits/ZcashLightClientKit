@@ -19,9 +19,9 @@ echo "export ZCASH_SRC_PATH=${ZCASH_SRC_PATH}"
 check_environment
 
 if is_mainnet; then
-    SOURCERY_ARGS="--args dbprefix=ZcashSdk_mainnet_ --args ismainnet=true --args saplingActivationHeight=200_000"
+    SOURCERY_ARGS="--args dbprefix=ZcashSdk_mainnet_ --args ismainnet=true --args saplingActivationHeight=152_855"
 else 
-    SOURCERY_ARGS="--args dbprefix=ZcashSdk_testnet_ --args ismainnet=false --args saplingActivationHeight=200_000"
+    SOURCERY_ARGS="--args dbprefix=ZcashSdk_testnet_ --args ismainnet=false --args saplingActivationHeight=152_855"
 fi
 
 if [ -d $ZCASH_SDK_GENERATED_SOURCES_FOLDER ]; then 
