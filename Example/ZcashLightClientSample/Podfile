@@ -9,7 +9,8 @@ target 'ZcashLightClientSample' do
   pod 'gRPC-Swift', '= 1.0.0'
   pod 'PaginatedTableView'
   pod 'NotificationBubbles'
-  pod 'MnemonicSwift', '~> 2.0.0'
+  pod 'MnemonicSwift', :git => 'https://github.com/zcash-hackworks/MnemonicSwift.git', :branch => 'master'
+  # pod 'MnemonicSwift', '~> 2.0.0'
   pod 'gRPC-Swift-Plugins', '= 1.0.0'
   target 'ZcashLightClientSampleTests' do
     use_frameworks!
