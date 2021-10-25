@@ -19,7 +19,7 @@ public extension ZcashSDK {
     static func defaultFee(for height: BlockHeight = BlockHeight.max) -> Int64 {
         guard  height >= feeChangeHeight else { return 10_000 }
         
-        return 1_000
+        return 10_000
     }
     /**
      Estimated height where wallets are supposed to change the fee
