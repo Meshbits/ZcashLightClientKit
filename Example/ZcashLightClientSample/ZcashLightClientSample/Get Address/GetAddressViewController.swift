@@ -13,12 +13,16 @@ class GetAddressViewController: UIViewController {
     @IBOutlet weak var tAddressLabel: UILabel!
     @IBOutlet weak var spendingKeyLabel: UILabel! // THIS SHOULD BE SUPER SECRET!!!!!
     
+    // Define what address index to fetch
+    // Default is 0, but we can define different intex for testing
+    var _accountIndex:Int = 0
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 
         // Do any additional setup after loading the view.
         
-        zAddressLabel.text = (try? DerivationTool.default.deriveShieldedAddress(seed: DemoAppConfig.seed, accountIndex: 0)) ?? "No Addresses found"
+        zAddressLabel.text = (try? DerivationTool.default.deriveShieldedAddress(seed: DemoAppConfig.seed, accountIndex: _accountIndex)) ?? "No Addresses found"
         tAddressLabel.text = (try? DerivationTool.default.deriveTransparentAddress(seed: DemoAppConfig.seed)) ?? "could not derive t-address"
         spendingKeyLabel.text = SampleStorage.shared.privateKey ?? "No Spending Key found"
         zAddressLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(addressTapped(_:))))
@@ -60,7 +64,7 @@ class GetAddressViewController: UIViewController {
     
     @IBAction func addressTapped(_ gesture: UIGestureRecognizer) {
         loggerProxy.event("copied to clipboard")
-        UIPasteboard.general.string = try? DerivationTool.default.deriveShieldedAddress(seed: DemoAppConfig.seed, accountIndex: 0)
+        UIPasteboard.general.string = try? DerivationTool.default.deriveShieldedAddress(seed: DemoAppConfig.seed, accountIndex: _accountIndex)
         let alert = UIAlertController(title: "", message: "Address Copied to clipboard", preferredStyle: UIAlertController.Style.alert)
         alert.addAction(UIAlertAction(title: "OK", style: UIAlertAction.Style.default, handler: nil))
         self.present(alert, animated: true, completion: nil)
