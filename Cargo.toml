@@ -46,10 +46,10 @@ crate-type = ["staticlib"]
 lto = true
 
 [patch.crates-io]
-zcash_client_backend = {git = "https://github.com/gmale/librustzcash", branch = "autoshield-poc-daa-taddr3"}
-zcash_client_sqlite = {git = "https://github.com/gmale/librustzcash", branch = "autoshield-poc-daa-taddr3"}
-zcash_primitives = {git = "https://github.com/gmale/librustzcash", branch = "autoshield-poc-daa-taddr3"}
-zcash_proofs = {git = "https://github.com/gmale/librustzcash", branch = "autoshield-poc-daa-taddr3"}
+zcash_client_backend = {git = "https://github.com/Meshbits/librustzcash", rev = "758f4c45bd1d26619d3a6fcbfc2de4e53c41a2f0"}
+zcash_client_sqlite = {git = "https://github.com/Meshbits/librustzcash", rev = "758f4c45bd1d26619d3a6fcbfc2de4e53c41a2f0"}
+zcash_primitives = {git = "https://github.com/Meshbits/librustzcash", rev = "758f4c45bd1d26619d3a6fcbfc2de4e53c41a2f0"}
+zcash_proofs = {git = "https://github.com/Meshbits/librustzcash", rev = "758f4c45bd1d26619d3a6fcbfc2de4e53c41a2f0"}
 
 [features]
 mainnet = ["zcash_client_sqlite/mainnet"]
