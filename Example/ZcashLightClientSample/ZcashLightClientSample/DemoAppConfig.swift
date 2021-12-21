@@ -19,11 +19,9 @@ struct DemoAppConfig {
         "\(host):\(port)"
     }
     
-    static var processorConfig: CompactBlockProcessor.Configuration {
-        var config = CompactBlockProcessor.Configuration(cacheDb: try! __cacheDbURL(), dataDb: try! __dataDbURL())
-        config.walletBirthday = self.birthdayHeight
-        return config
-    }
+    static var processorConfig: CompactBlockProcessor.Configuration  = {
+        CompactBlockProcessor.Configuration(cacheDb: try! __cacheDbURL(), dataDb: try! __dataDbURL(), walletBirthday: Self.birthdayHeight, network: ZCASH_NETWORK)
+    }()
     
     static var endpoint: LightWalletEndpoint {
         return LightWalletEndpoint(address: self.host, port: self.port, secure: true)
@@ -31,7 +29,13 @@ struct DemoAppConfig {
 }
 
 
-enum ZcashNetwork {
-    case mainNet
-    case testNet
+extension ZcashSDK {
+    static var isMainnet: Bool {
+        switch ZCASH_NETWORK.networkType {
+        case .mainnet:
+            return true
+        case .testnet:
+            return false
+        }
+    }
 }

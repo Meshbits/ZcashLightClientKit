@@ -22,12 +22,12 @@ target 'ZcashLightClientSample' do
     inherit! :search_paths
     # Pods for testing
   end
-  
 end
 
 target 'ZcashLightClientSample-Mainnet' do
   inherit! :search_paths
   use_frameworks!
+  pod 'MnemonicSwift', '~> 2.0.0'
   pod "KRProgressHUD"
   pod 'gRPC-Swift', '= 1.0.0'
   pod 'PaginatedTableView'

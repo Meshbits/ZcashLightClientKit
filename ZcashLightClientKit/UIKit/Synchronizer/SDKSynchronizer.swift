@@ -124,12 +124,12 @@ public class SDKSynchronizer: Synchronizer {
     public private(set) var progress: Float = 0.0
     public private(set) var blockProcessor: CompactBlockProcessor
     public private(set) var initializer: Initializer
-    
+    public private(set) var latestScannedHeight: BlockHeight
     public private(set) var connectionState: ConnectionState
+    public private(set) var network: ZcashNetwork
     private var transactionManager: OutboundTransactionManager
     private var transactionRepository: TransactionRepository
     private var utxoRepository: UnspentTransactionOutputRepository
-    
     /**
      Creates an SDKSynchronizer instance
      - Parameter initializer: a wallet Initializer object
@@ -158,7 +158,9 @@ public class SDKSynchronizer: Synchronizer {
         self.transactionRepository = transactionRepository
         self.utxoRepository = utxoRepository
         self.blockProcessor = blockProcessor
-        self.subscribeToProcessorNotifications(self.blockProcessor)
+        self.latestScannedHeight = (try? transactionRepository.lastScannedHeight()) ?? initializer.walletBirthday.height
+        self.network = initializer.network
+        self.subscribeToProcessorNotifications(blockProcessor)
     }
     
     deinit {
@@ -190,8 +192,8 @@ public class SDKSynchronizer: Synchronizer {
              .scanning,
              .enhancing,
              .fetching:
-            assert(true,"warning:  synchronizer started when already started") // TODO: remove this assertion sometime in the near future
-            LoggerProxy.debug("warning:  synchronizer started when already started")
+//            assert(false,"warning:  synchronizer started when already started") // TODO: remove this assertion sometime in the near future
+            LoggerProxy.warn("warning: synchronizer started when already started")
             return
         case .stopped, .synced,.disconnected, .error:
             do {
@@ -213,6 +215,7 @@ public class SDKSynchronizer: Synchronizer {
         }
         
         blockProcessor.stop(cancelTasks: true)
+        self.status = .stopped
     }
     
     private func subscribeToProcessorNotifications(_ processor: CompactBlockProcessor) {
@@ -237,10 +240,17 @@ public class SDKSynchronizer: Synchronizer {
                            selector: #selector(processorStartedScanning(_:)),
                            name: Notification.Name.blockProcessorStartedScanning,
                            object: processor)
+        
         center.addObserver(self,
-                           selector: #selector(processorStartedScanning(_:)),
-                           name: Notification.Name.blockProcessorStartedScanning,
+                           selector: #selector(processorStartedEnhancing(_:)),
+                           name: Notification.Name.blockProcessorStartedEnhancing,
                            object: processor)
+        
+        center.addObserver(self,
+                           selector: #selector(processorStartedFetching(_:)),
+                           name: Notification.Name.blockProcessorStartedFetching,
+                           object: processor)
+        
         center.addObserver(self,
                            selector: #selector(processorStopped(_:)),
                            name: Notification.Name.blockProcessorStopped,
@@ -400,8 +410,12 @@ public class SDKSynchronizer: Synchronizer {
     
     @objc func processorFinished(_ notification: Notification) {
         // FIX: Pending transaction updates fail if done from another thread. Improvement needed: explicitly define queues for sql repositories
+            
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
+                if let blockHeight = notification.userInfo?[CompactBlockProcessorNotificationKey.latestScannedBlockHeight] as? BlockHeight {
+                    self.latestScannedHeight = blockHeight
+                }
                 self.refreshPendingTransactions()
                 self.status = .synced
             }
@@ -430,13 +444,14 @@ public class SDKSynchronizer: Synchronizer {
     public func shieldFunds(spendingKey: String, transparentSecretKey: String, memo: String?, from accountIndex: Int, resultBlock: @escaping (Result<PendingTransactionEntity, Error>) -> Void) {
         
         // let's see if there are funds to shield
-        let derivationTool = DerivationTool.default
+        let derivationTool = DerivationTool(networkType: self.network.networkType)
         
         do {
             let tAddr = try derivationTool.deriveTransparentAddressFromPrivateKey(transparentSecretKey)
             let tBalance = try utxoRepository.balance(address: tAddr, latestHeight: self.latestDownloadedHeight())
             
-            guard tBalance.verified >= ZcashSDK.shieldingThreshold else {
+            // Verify that at least there are funds for the fee. Ideally this logic will be improved by the shielding wallet.
+            guard tBalance.verified >= self.network.constants.defaultFee(for: self.latestScannedHeight) else {
                 resultBlock(.failure(ShieldFundsError.insuficientTransparentFunds))
                 return
             }
@@ -549,7 +564,7 @@ public class SDKSynchronizer: Synchronizer {
             return
         }
         
-        initializer.lightWalletService.fetchUTXOs(for: address, height: ZcashSDK.SAPLING_ACTIVATION_HEIGHT, result: { [weak self] r in
+        initializer.lightWalletService.fetchUTXOs(for: address, height: network.constants.SAPLING_ACTIVATION_HEIGHT, result: { [weak self] r in
             guard let self = self else { return }
             switch r {
             case .success(let utxos):
@@ -566,7 +581,7 @@ public class SDKSynchronizer: Synchronizer {
         })
     }
    
-    public func refreshUTXOs(address: String, from height: BlockHeight = ZcashSDK.SAPLING_ACTIVATION_HEIGHT, result: @escaping (Result<RefreshedUTXOs, Error>) -> Void) {
+    public func refreshUTXOs(address: String, from height: BlockHeight, result: @escaping (Result<RefreshedUTXOs, Error>) -> Void) {
         
         self.blockProcessor.refreshUTXOs(tAddress: address, startHeight: height, result: result)
     }
@@ -622,7 +637,7 @@ public class SDKSynchronizer: Synchronizer {
             height = rewindHeight
         
         case .transaction(let tx):
-            guard let txHeight = tx.anchor else {
+            guard let txHeight = tx.anchor(network: self.network) else {
                 throw SynchronizerError.rewindErrorUnknownArchorHeight
             }
             height = txHeight
@@ -663,8 +678,12 @@ public class SDKSynchronizer: Synchronizer {
         case .stopped:
             NotificationCenter.default.post(name: Notification.Name.synchronizerStopped, object: self)
         case .synced:
-            NotificationCenter.default.post(name: Notification.Name.synchronizerSynced, object: self)
-     
+            NotificationCenter.default.post(
+                name: Notification.Name.synchronizerSynced,
+                object: self,
+                userInfo: [
+                    SDKSynchronizer.NotificationKeys.blockHeight : self.latestScannedHeight,
+                ])
         case .unprepared:
             break
         case .downloading:
@@ -739,7 +758,7 @@ public class SDKSynchronizer: Synchronizer {
             case .generalError(let message):
                 return SynchronizerError.generalError(message: message)
             case .maxAttemptsReached(attempts: let attempts):
-                return SynchronizerError.maxRetryAttemptsReached(attempts: attempts)    
+                return SynchronizerError.maxRetryAttemptsReached(attempts: attempts)
             case .grpcError(let statusCode, let message):
                 return SynchronizerError.connectionError(status: statusCode, message: message)
             case .connectionTimeout:
