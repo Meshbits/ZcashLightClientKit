@@ -189,7 +189,7 @@ public class ZcashSDKMainnetConstants: NetworkConstants {
      The height of the first sapling block. When it comes to shielded transactions, we do not need to consider any blocks
      prior to this height, at all.
      */
-    public static var SAPLING_ACTIVATION_HEIGHT: BlockHeight = 419_200
+    public static var SAPLING_ACTIVATION_HEIGHT: BlockHeight = 200_000
     
     /**
      Default Name for LibRustZcash data.db
