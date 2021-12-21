@@ -175,9 +175,9 @@ public protocol NetworkConstants {
 public extension NetworkConstants {
     
     static func defaultFee(for height: BlockHeight = BlockHeight.max) -> Int64 {
-        guard  height >= FEE_CHANGE_HEIGHT else { return 10_000 }
+        // guard  height >= FEE_CHANGE_HEIGHT else { return 10_000 }
         
-        return 1_000
+        return 10_000
     }
 }
 
