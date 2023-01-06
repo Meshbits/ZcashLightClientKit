@@ -163,7 +163,7 @@ public extension NetworkConstants {
     static func defaultFee(for height: BlockHeight = BlockHeight.max) -> Int64 {
         guard height >= feeChangeHeight else { return 10_000 }
         
-        return 1_000
+        return 10_000
     }
 
     static func defaultFee(for height: BlockHeight = BlockHeight.max) -> Zatoshi {
@@ -191,7 +191,7 @@ public class ZcashSDKMainnetConstants: NetworkConstants {
     
     public static var defaultDbNamePrefix = "ZcashSdk_mainnet_"
     
-    public static var feeChangeHeight: BlockHeight = 1_077_550
+    public static var feeChangeHeight: BlockHeight = 1_000_000_000
 }
 
 public class ZcashSDKTestnetConstants: NetworkConstants {
@@ -213,5 +213,5 @@ public class ZcashSDKTestnetConstants: NetworkConstants {
     public static var defaultDbNamePrefix = "ZcashSdk_testnet_"
 
     /// Estimated height where wallets are supposed to change the fee
-    public static var feeChangeHeight: BlockHeight = 1_028_500
+    public static var feeChangeHeight: BlockHeight = 1_000_000_000
 }

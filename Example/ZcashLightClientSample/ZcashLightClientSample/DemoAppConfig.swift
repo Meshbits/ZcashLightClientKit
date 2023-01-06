@@ -12,7 +12,7 @@ import MnemonicSwift
 
 // swiftlint:disable line_length force_try
 enum DemoAppConfig {
-    static var host = "lightd.pirate.black"
+    static var host = ZcashSDK.isMainnet ? "lightd1.pirate.black" : "testlightd.pirate.black"
     static var port: Int = 443
     static var birthdayHeight: BlockHeight = 139000
 

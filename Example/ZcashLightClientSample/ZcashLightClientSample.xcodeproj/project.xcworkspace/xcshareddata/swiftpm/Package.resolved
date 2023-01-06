@@ -138,9 +138,9 @@
     {
       "identity" : "zcash-light-client-ffi",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/zcash-hackworks/zcash-light-client-ffi",
+      "location" : "https://github.com/Meshbits/zcash-light-client-ffi",
       "state" : {
-        "revision" : "b6013b8b313523b2c72ce62dbdc17f6ffad3a500",
+        "revision" : "6a559d99cd1547b3c37aa6105cb1bc59e98fda6c",
         "version" : "0.1.1"
       }
     }
