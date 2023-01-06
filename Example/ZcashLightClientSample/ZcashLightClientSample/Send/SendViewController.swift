@@ -9,6 +9,7 @@
 import UIKit
 import ZcashLightClientKit
 import KRProgressHUD
+
 class SendViewController: UIViewController {
     @IBOutlet weak var addressLabel: UILabel!
     @IBOutlet weak var amountLabel: UILabel!
@@ -32,11 +33,13 @@ class SendViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         synchronizer = AppDelegate.shared.sharedSynchronizer
-        // swiftlint:disable:next force_try
-        try! synchronizer.prepare()
         let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(viewTapped(_:)))
         self.view.addGestureRecognizer(tapRecognizer)
         setUp()
+        Task { @MainActor in
+            // swiftlint:disable:next force_try
+            try! await synchronizer.prepare(with: DemoAppConfig.seed)
+        }
     }
     
     override func viewDidAppear(_ animated: Bool) {
@@ -102,8 +105,8 @@ class SendViewController: UIViewController {
         )
     }
     
-    func format(balance: Int64 = 0) -> String {
-        "Zec \(balance.asHumanReadableZecBalance())"
+    func format(balance: Zatoshi = Zatoshi()) -> String {
+        "Zec \(balance.formattedString ?? "0.0")"
     }
     
     func toggleSendButton() {
@@ -111,9 +114,9 @@ class SendViewController: UIViewController {
     }
     
     func maxFundsOn() {
-        let fee: Int64 = 10000
-        let max = wallet.getVerifiedBalance() - fee
-        amountTextField.text = String(max.asHumanReadableZecBalance())
+        let fee = Zatoshi(10000)
+        let max: Zatoshi = wallet.getVerifiedBalance() - fee
+        amountTextField.text = format(balance: max)
         amountTextField.isEnabled = false
     }
     
@@ -131,14 +134,14 @@ class SendViewController: UIViewController {
     }
     
     func isBalanceValid() -> Bool {
-        wallet.getVerifiedBalance() > 0
+        wallet.getVerifiedBalance() > .zero
     }
     
     func isAmountValid() -> Bool {
         guard
             let value = amountTextField.text,
-            let amount = Double(value),
-            amount.toZatoshi() <= wallet.getVerifiedBalance()
+            let amount = NumberFormatter.zcashNumberFormatter.number(from: value).flatMap({ Zatoshi($0.int64Value) }),
+            amount <= wallet.getVerifiedBalance()
         else {
             return false
         }
@@ -150,7 +153,7 @@ class SendViewController: UIViewController {
         guard let addr = self.addressTextField.text else {
             return false
         }
-        return wallet.isValidShieldedAddress(addr) || wallet.isValidTransparentAddress(addr)
+        return wallet.isValidSaplingAddress(addr) || wallet.isValidTransparentAddress(addr)
     }
     
     @IBAction func maxFundsValueChanged(_ sender: Any) {
@@ -197,38 +200,45 @@ class SendViewController: UIViewController {
     }
     
     func send() {
-        guard isFormValid(), let amount = amountTextField.text, let zec = Double(amount)?.toZatoshi(), let recipient = addressTextField.text else {
+        guard
+            isFormValid(),
+            let amount = amountTextField.text,
+            let zec = NumberFormatter.zcashNumberFormatter.number(from: amount).flatMap({ Zatoshi($0.int64Value) }),
+            let recipient = addressTextField.text
+        else {
             loggerProxy.warn("WARNING: Form is invalid")
             return
         }
-        
-        guard let address = SampleStorage.shared.privateKey else {
-            loggerProxy.error("NO ADDRESS")
+
+        guard let spendingKey = try? DerivationTool(
+            networkType: kZcashNetwork.networkType
+        )
+            .deriveUnifiedSpendingKey(
+                seed: DemoAppConfig.seed,
+                accountIndex: 0
+            )
+        else {
+            loggerProxy.error("NO SPENDING KEY")
             return
         }
         
         KRProgressHUD.show()
         
-        synchronizer.sendToAddress(
-            spendingKey: address,
-            zatoshi: zec,
-            toAddress: recipient,
-            memo: !self.memoField.text.isEmpty ? self.memoField.text : nil,
-            from: 0
-        ) {  [weak self] result in
-            DispatchQueue.main.async {
+        Task { @MainActor in
+            do {
+                let pendingTransaction = try await synchronizer.sendToAddress(
+                    spendingKey: spendingKey,
+                    zatoshi: zec,
+                    // swiftlint:disable:next force_try
+                    toAddress: try! Recipient(recipient, network: kZcashNetwork.networkType),
+                    // swiftlint:disable:next force_try
+                    memo: try! self.memoField.text.asMemo()
+                )
                 KRProgressHUD.dismiss()
-            }
-
-            switch result {
-            case .success(let pendingTransaction):
                 loggerProxy.info("transaction created: \(pendingTransaction)")
-                
-            case .failure(let error):
-                DispatchQueue.main.async {
-                    self?.fail(error)
-                    loggerProxy.error("SEND FAILED: \(error)")
-                }
+            } catch {
+                fail(error)
+                loggerProxy.error("SEND FAILED: \(error)")
             }
         }
     }
@@ -355,6 +365,17 @@ extension SDKSynchronizer {
 
         case .error(let e):
             return "Error: \(e.localizedDescription)"
+        }
+    }
+}
+
+extension Optional where Wrapped == String {
+    func asMemo() throws -> Memo {
+        switch self {
+        case .some(let string):
+            return try Memo(string: string)
+        case .none:
+            return .empty
         }
     }
 }

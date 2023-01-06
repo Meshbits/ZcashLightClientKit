@@ -23,48 +23,39 @@ class GetUTXOsViewController: UIViewController {
     }
     
     func updateUI() {
-        // swiftlint:disable:next force_try
-        let tAddress = try! DerivationTool(networkType: kZcashNetwork.networkType)
-            .deriveTransparentAddress(seed: DemoAppConfig.seed)
+        let synchronizer = SDKSynchronizer.shared
 
-        self.transparentAddressLabel.text = tAddress
+        Task { @MainActor in
+            let tAddress = await synchronizer.getTransparentAddress(accountIndex: 0)?.stringEncoded ?? "no t-address found"
 
-        // swiftlint:disable:next force_try
-        let balance = try! AppDelegate.shared.sharedSynchronizer.getTransparentBalance(accountIndex: 0)
-        
-        self.totalBalanceLabel.text = String(balance.total.asHumanReadableZecBalance())
-        self.verifiedBalanceLabel.text = String(balance.verified.asHumanReadableZecBalance())
+            self.transparentAddressLabel.text = tAddress
+            
+            // swiftlint:disable:next force_try
+            let balance = try! await AppDelegate.shared.sharedSynchronizer.getTransparentBalance(accountIndex: 0)
+            
+            self.totalBalanceLabel.text = NumberFormatter.zcashNumberFormatter.string(from: NSNumber(value: balance.total.amount))
+            self.verifiedBalanceLabel.text = NumberFormatter.zcashNumberFormatter.string(from: NSNumber(value: balance.verified.amount))
+        }
     }
     
     @IBAction func shieldFunds(_ sender: Any) {
         do {
-            let seed = DemoAppConfig.seed
             let derivationTool = DerivationTool(networkType: kZcashNetwork.networkType)
-            // swiftlint:disable:next force_unwrapping
-            let spendingKey = try derivationTool.deriveSpendingKeys(seed: seed, numberOfAccounts: 1).first!
-            let transparentSecretKey = try derivationTool.deriveTransparentPrivateKey(seed: seed)
+
+            let usk = try derivationTool.deriveUnifiedSpendingKey(seed: DemoAppConfig.seed, accountIndex: 0)
 
             KRProgressHUD.showMessage("🛡 Shielding 🛡")
 
-            AppDelegate.shared.sharedSynchronizer.shieldFunds(
-                spendingKey: spendingKey,
-                transparentSecretKey: transparentSecretKey,
-                memo: "shielding is fun!",
-                from: 0,
-                resultBlock: { result in
-                    DispatchQueue.main.async {
-                        KRProgressHUD.dismiss()
-                        switch result {
-                        case .success(let transaction):
-                            self.messageLabel.text = "funds shielded \(transaction)"
-                        case .failure(let error):
-                            self.messageLabel.text = "Shielding failed: \(error)"
-                        }
-                    }
-                }
-            )
+            Task { @MainActor in
+                let transaction = try await AppDelegate.shared.sharedSynchronizer.shieldFunds(
+                    spendingKey: usk,
+                    memo: try Memo(string: "shielding is fun!")
+                )
+                KRProgressHUD.dismiss()
+                self.messageLabel.text = "funds shielded \(transaction)"
+            }
         } catch {
-            self.messageLabel.text = "Error \(error)"
+            self.messageLabel.text = "Shielding failed \(error)"
         }
     }
 }

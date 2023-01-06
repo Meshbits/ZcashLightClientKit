@@ -14,8 +14,9 @@ enum DemoAppConfig {
     static var host = ZcashSDK.isMainnet ? "lightwalletd.electriccoin.co" : "lightwalletd.testnet.electriccoin.co"
     static var port: Int = 9067
     static var birthdayHeight: BlockHeight = ZcashSDK.isMainnet ? 935000 : 1386000
-    
+
     static var seed = try! Mnemonic.deterministicSeedBytes(from: "live combine flight accident slow soda mind bright absent bid hen shy decade biology amazing mix enlist ensure biology rhythm snap duty soap armor")
+
     static var address: String {
         "\(host):\(port)"
     }
@@ -24,13 +25,15 @@ enum DemoAppConfig {
         CompactBlockProcessor.Configuration(
             cacheDb: try! cacheDbURLHelper(),
             dataDb: try! dataDbURLHelper(),
+            spendParamsURL: try! spendParamsURLHelper(),
+            outputParamsURL: try! outputParamsURLHelper(),
             walletBirthday: Self.birthdayHeight,
             network: kZcashNetwork
         )
     }()
     
     static var endpoint: LightWalletEndpoint {
-        return LightWalletEndpoint(address: self.host, port: self.port, secure: true)
+        return LightWalletEndpoint(address: self.host, port: self.port, secure: true, streamingCallTimeoutInMillis: 10 * 60 * 60 * 1000)
     }
 }
 
