@@ -7,13 +7,13 @@ Pod::Spec.new do |s|
     Zcash Light Client wallet SDK for iOS 
                          DESC
   
-    s.homepage         = 'https://github.com/zcash/ZcashLightClientKit'
+    s.homepage         = 'https://github.com/Meshbits/ZcashLightClientKit'
     s.license          = { :type => 'MIT', :file => 'LICENSE' }
     s.author           = { 
         'Francisco Gindre' => 'francisco.gindre@gmail.com',
         'Jack Grigg' => 'str4d@electriccoin.co'
      }
-    s.source           = { :git => 'https://github.com/zcash/ZcashLightClientKit.git', :tag => s.version.to_s }
+    s.source           = { :git => 'https://github.com/Meshbits/ZcashLightClientKit.git', :tag => 'v12-beta-5' }
 
     s.source_files = 'Sources/ZcashLightClientKit/**/*.{swift,h}'
     s.resource_bundles = { 'Resources' => 'Sources/ZcashLightClientKit/Resources/*' }

@@ -106,7 +106,7 @@ class SendViewController: UIViewController {
     }
     
     func format(balance: Zatoshi = Zatoshi()) -> String {
-        "Zec \(balance.formattedString ?? "0.0")"
+        "ARRR \(balance.formattedString ?? "0.0")"
     }
     
     func toggleSendButton() {

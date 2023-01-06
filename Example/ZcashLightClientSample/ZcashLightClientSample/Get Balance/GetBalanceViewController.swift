@@ -16,8 +16,8 @@ class GetBalanceViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         self.title = "Account 0 Balance"
-        self.balance.text = "\(Initializer.shared.getBalance().formattedString ?? "0.0") ZEC"
-        self.verified.text = "\(Initializer.shared.getVerifiedBalance().formattedString ?? "0.0") ZEC"
+        self.balance.text = "\(Initializer.shared.getBalance().formattedString ?? "0.0") ARRR"
+        self.verified.text = "\(Initializer.shared.getVerifiedBalance().formattedString ?? "0.0") ARRR"
     }
 }
 
