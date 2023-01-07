@@ -113,7 +113,7 @@ internal protocol CompactTxStreamerClientProtocol: GRPCClient {
 
 extension CompactTxStreamerClientProtocol {
   internal var serviceName: String {
-    return "cash.z.wallet.sdk.rpc.CompactTxStreamer"
+    return "pirate.wallet.sdk.rpc.CompactTxStreamer"
   }
 
   /// Return the height of the tip of the best chain
@@ -309,7 +309,7 @@ extension CompactTxStreamerClientProtocol {
     handler: @escaping (RawTransaction) -> Void
   ) -> ServerStreamingCall<Empty, RawTransaction> {
     return self.makeServerStreamingCall(
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetMempoolStream",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetMempoolStream",
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions,
       handler: handler
@@ -433,7 +433,7 @@ internal final class CompactTxStreamerClient: CompactTxStreamerClientProtocol {
     set { self.lock.withLockVoid { self._interceptors = newValue } }
   }
 
-  /// Creates a client for the cash.z.wallet.sdk.rpc.CompactTxStreamer service.
+  /// Creates a client for the pirate.wallet.sdk.rpc.CompactTxStreamer service.
   ///
   /// - Parameters:
   ///   - channel: `GRPCChannel` to the service host.
@@ -455,7 +455,7 @@ internal struct CompactTxStreamerNIOClient: CompactTxStreamerClientProtocol {
   internal var defaultCallOptions: CallOptions
   internal var interceptors: CompactTxStreamerClientInterceptorFactoryProtocol?
 
-  /// Creates a client for the cash.z.wallet.sdk.rpc.CompactTxStreamer service.
+  /// Creates a client for the pirate.wallet.sdk.rpc.CompactTxStreamer service.
   ///
   /// - Parameters:
   ///   - channel: `GRPCChannel` to the service host.
@@ -975,7 +975,7 @@ internal protocol CompactTxStreamerClientInterceptorFactoryProtocol: GRPCSendabl
 internal enum CompactTxStreamerClientMetadata {
   internal static let serviceDescriptor = GRPCServiceDescriptor(
     name: "CompactTxStreamer",
-    fullName: "cash.z.wallet.sdk.rpc.CompactTxStreamer",
+    fullName: "pirate.wallet.sdk.rpc.CompactTxStreamer",
     methods: [
       CompactTxStreamerClientMetadata.Methods.getLatestBlock,
       CompactTxStreamerClientMetadata.Methods.getBlock,
@@ -997,85 +997,85 @@ internal enum CompactTxStreamerClientMetadata {
   internal enum Methods {
     internal static let getLatestBlock = GRPCMethodDescriptor(
       name: "GetLatestBlock",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetLatestBlock",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetLatestBlock",
       type: GRPCCallType.unary
     )
 
     internal static let getBlock = GRPCMethodDescriptor(
       name: "GetBlock",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetBlock",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetBlock",
       type: GRPCCallType.unary
     )
 
     internal static let getBlockRange = GRPCMethodDescriptor(
       name: "GetBlockRange",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetBlockRange",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetBlockRange",
       type: GRPCCallType.serverStreaming
     )
 
     internal static let getTransaction = GRPCMethodDescriptor(
       name: "GetTransaction",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetTransaction",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetTransaction",
       type: GRPCCallType.unary
     )
 
     internal static let sendTransaction = GRPCMethodDescriptor(
       name: "SendTransaction",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/SendTransaction",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/SendTransaction",
       type: GRPCCallType.unary
     )
 
     internal static let getTaddressTxids = GRPCMethodDescriptor(
       name: "GetTaddressTxids",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetTaddressTxids",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetTaddressTxids",
       type: GRPCCallType.serverStreaming
     )
 
     internal static let getTaddressBalance = GRPCMethodDescriptor(
       name: "GetTaddressBalance",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetTaddressBalance",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetTaddressBalance",
       type: GRPCCallType.unary
     )
 
     internal static let getTaddressBalanceStream = GRPCMethodDescriptor(
       name: "GetTaddressBalanceStream",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetTaddressBalanceStream",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetTaddressBalanceStream",
       type: GRPCCallType.clientStreaming
     )
 
     internal static let getMempoolTx = GRPCMethodDescriptor(
       name: "GetMempoolTx",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetMempoolTx",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetMempoolTx",
       type: GRPCCallType.serverStreaming
     )
 
     internal static let getTreeState = GRPCMethodDescriptor(
       name: "GetTreeState",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetTreeState",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetTreeState",
       type: GRPCCallType.unary
     )
 
     internal static let getAddressUtxos = GRPCMethodDescriptor(
       name: "GetAddressUtxos",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetAddressUtxos",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetAddressUtxos",
       type: GRPCCallType.unary
     )
 
     internal static let getAddressUtxosStream = GRPCMethodDescriptor(
       name: "GetAddressUtxosStream",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetAddressUtxosStream",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetAddressUtxosStream",
       type: GRPCCallType.serverStreaming
     )
 
     internal static let getLightdInfo = GRPCMethodDescriptor(
       name: "GetLightdInfo",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetLightdInfo",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/GetLightdInfo",
       type: GRPCCallType.unary
     )
 
     internal static let ping = GRPCMethodDescriptor(
       name: "Ping",
-      path: "/cash.z.wallet.sdk.rpc.CompactTxStreamer/Ping",
+      path: "/pirate.wallet.sdk.rpc.CompactTxStreamer/Ping",
       type: GRPCCallType.unary
     )
   }

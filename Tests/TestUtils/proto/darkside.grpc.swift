@@ -102,7 +102,7 @@ extension DarksideStreamerClientProtocol {
     callOptions: CallOptions? = nil
   ) -> UnaryCall<DarksideMetaState, Empty> {
     return self.makeUnaryCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/Reset",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/Reset",
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions
     )
@@ -122,7 +122,7 @@ extension DarksideStreamerClientProtocol {
     callOptions: CallOptions? = nil
   ) -> ClientStreamingCall<DarksideBlock, Empty> {
     return self.makeClientStreamingCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/StageBlocksStream",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/StageBlocksStream",
       callOptions: callOptions ?? self.defaultCallOptions
     )
   }
@@ -139,7 +139,7 @@ extension DarksideStreamerClientProtocol {
     callOptions: CallOptions? = nil
   ) -> UnaryCall<DarksideBlocksURL, Empty> {
     return self.makeUnaryCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/StageBlocks",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/StageBlocks",
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions
     )
@@ -160,7 +160,7 @@ extension DarksideStreamerClientProtocol {
     callOptions: CallOptions? = nil
   ) -> UnaryCall<DarksideEmptyBlocks, Empty> {
     return self.makeUnaryCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/StageBlocksCreate",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/StageBlocksCreate",
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions
     )
@@ -182,7 +182,7 @@ extension DarksideStreamerClientProtocol {
     callOptions: CallOptions? = nil
   ) -> ClientStreamingCall<RawTransaction, Empty> {
     return self.makeClientStreamingCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/StageTransactionsStream",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/StageTransactionsStream",
       callOptions: callOptions ?? self.defaultCallOptions
     )
   }
@@ -200,7 +200,7 @@ extension DarksideStreamerClientProtocol {
     callOptions: CallOptions? = nil
   ) -> UnaryCall<DarksideTransactionsURL, Empty> {
     return self.makeUnaryCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/StageTransactions",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/StageTransactions",
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions
     )
@@ -232,7 +232,7 @@ extension DarksideStreamerClientProtocol {
     callOptions: CallOptions? = nil
   ) -> UnaryCall<DarksideHeight, Empty> {
     return self.makeUnaryCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/ApplyStaged",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/ApplyStaged",
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions
     )
@@ -257,7 +257,7 @@ extension DarksideStreamerClientProtocol {
     handler: @escaping (RawTransaction) -> Void
   ) -> ServerStreamingCall<Empty, RawTransaction> {
     return self.makeServerStreamingCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/GetIncomingTransactions",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/GetIncomingTransactions",
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions,
       handler: handler
@@ -275,7 +275,7 @@ extension DarksideStreamerClientProtocol {
     callOptions: CallOptions? = nil
   ) -> UnaryCall<Empty, Empty> {
     return self.makeUnaryCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/ClearIncomingTransactions",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/ClearIncomingTransactions",
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions
     )
@@ -293,7 +293,7 @@ extension DarksideStreamerClientProtocol {
     callOptions: CallOptions? = nil
   ) -> UnaryCall<GetAddressUtxosReply, Empty> {
     return self.makeUnaryCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/AddAddressUtxo",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/AddAddressUtxo",
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions
     )
@@ -310,7 +310,7 @@ extension DarksideStreamerClientProtocol {
     callOptions: CallOptions? = nil
   ) -> UnaryCall<Empty, Empty> {
     return self.makeUnaryCall(
-      path: "/cash.z.wallet.sdk.rpc.DarksideStreamer/ClearAddressUtxo",
+      path: "/pirate.wallet.sdk.rpc.DarksideStreamer/ClearAddressUtxo",
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions
     )
@@ -321,7 +321,7 @@ internal final class DarksideStreamerClient: DarksideStreamerClientProtocol {
   internal let channel: GRPCChannel
   internal var defaultCallOptions: CallOptions
 
-  /// Creates a client for the cash.z.wallet.sdk.rpc.DarksideStreamer service.
+  /// Creates a client for the pirate.wallet.sdk.rpc.DarksideStreamer service.
   ///
   /// - Parameters:
   ///   - channel: `GRPCChannel` to the service host.
