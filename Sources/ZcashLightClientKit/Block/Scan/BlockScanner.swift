@@ -16,29 +16,31 @@ protocol BlockScanner {
     @discardableResult
     func scanBlocks(
         at range: CompactBlockRange,
-        didScan: @escaping (BlockHeight, UInt32) async throws -> Void
+        totalProgressRange: CompactBlockRange,
+        didScan: @escaping (BlockHeight) async -> Void
     ) async throws -> BlockHeight
 }
 
 struct BlockScannerImpl {
     let config: BlockScannerConfig
     let rustBackend: ZcashRustBackendWelding
-    let service: LightWalletService
     let transactionRepository: TransactionRepository
     let metrics: SDKMetrics
     let logger: Logger
+    let latestBlocksDataProvider: LatestBlocksDataProvider
 }
 
 extension BlockScannerImpl: BlockScanner {
     @discardableResult
     func scanBlocks(
         at range: CompactBlockRange,
-        didScan: @escaping (BlockHeight, UInt32) async throws -> Void
+        totalProgressRange: CompactBlockRange,
+        didScan: @escaping (BlockHeight) async -> Void
     ) async throws -> BlockHeight {
         logger.debug("Going to scan blocks in range: \(range)")
         try Task.checkCancellation()
 
-        let scanStartHeight = range.lowerBound
+        let scanStartHeight = try await transactionRepository.lastScannedHeight()
         let targetScanHeight = range.upperBound
 
         var scannedNewBlocks = false
@@ -48,18 +50,13 @@ extension BlockScannerImpl: BlockScanner {
             try Task.checkCancellation()
 
             let previousScannedHeight = lastScannedHeight
-            let startHeight = previousScannedHeight + 1
 
-            let batchSize = UInt32(config.scanningBatchSize)
+            // TODO: [#576] remove this arbitrary batch size https://github.com/zcash/PirateLightClientKit/issues/576
+            let batchSize = scanBatchSize(startScanHeight: previousScannedHeight + 1, network: config.networkType)
 
-            // TODO: [#1355] Do more with ScanSummary
-            // https://github.com/Electric-Coin-Company/zcash-swift-wallet-sdk/issues/1355
-            let scanSummary: ScanSummary
             let scanStartTime = Date()
             do {
-                let fromState = try await service.getTreeState(BlockID(height: startHeight - 1))
-
-                scanSummary = try await self.rustBackend.scanBlocks(fromHeight: Int32(startHeight), fromState: fromState, limit: batchSize)
+                try await self.rustBackend.scanBlocks(limit: batchSize)
             } catch {
                 logger.debug("block scanning failed with error: \(String(describing: error))")
                 throw error
@@ -67,16 +64,33 @@ extension BlockScannerImpl: BlockScanner {
 
             let scanFinishTime = Date()
 
-            lastScannedHeight = scanSummary.scannedRange.upperBound - 1
-
+            if let lastScannedBlock = try await transactionRepository.lastScannedBlock() {
+                lastScannedHeight = lastScannedBlock.height
+                await latestBlocksDataProvider.updateLatestScannedHeight(lastScannedHeight)
+                await latestBlocksDataProvider.updateLatestScannedTime(TimeInterval(lastScannedBlock.time))
+            }
+            
             scannedNewBlocks = previousScannedHeight != lastScannedHeight
             if scannedNewBlocks {
-                try await didScan(lastScannedHeight, batchSize)
+                await didScan(lastScannedHeight)
+
+                let progress = BlockProgress(
+                    startHeight: totalProgressRange.lowerBound,
+                    targetHeight: totalProgressRange.upperBound,
+                    progressHeight: lastScannedHeight
+                )
+
+                metrics.pushProgressReport(
+                    progress: progress,
+                    start: scanStartTime,
+                    end: scanFinishTime,
+                    batchSize: Int(batchSize),
+                    operation: .scanBlocks
+                )
 
                 let heightCount = lastScannedHeight - previousScannedHeight
                 let seconds = scanFinishTime.timeIntervalSinceReferenceDate - scanStartTime.timeIntervalSinceReferenceDate
                 logger.debug("Scanned \(heightCount) blocks in \(seconds) seconds")
-                logger.sync("Scanned \(heightCount) blocks in \(seconds) seconds")
             }
 
             await Task.yield()
@@ -84,4 +98,34 @@ extension BlockScannerImpl: BlockScanner {
 
         return lastScannedHeight
     }
+
+    private func scanBatchSize(startScanHeight height: BlockHeight, network: NetworkType) -> UInt32 {
+        assert(config.scanningBatchSize > 0, "PirateSDK.DefaultScanningBatch must be larger than 0!")
+        guard network == .mainnet else { return UInt32(config.scanningBatchSize) }
+
+        //if height > 1_650_000 {
+            // librustzcash thread saturation at a number of blocks
+            // that contains 100 * num_cores Sapling outputs.
+        //    return UInt32(max(ProcessInfo().activeProcessorCount, 10))
+        //}
+
+        return UInt32(config.scanningBatchSize)
+    }
+}
+
+
+public struct BlockProgress: Equatable {
+    public let startHeight: BlockHeight
+    public let targetHeight: BlockHeight
+    public let progressHeight: BlockHeight
+
+    public var progress: Float {
+        let overall = self.targetHeight - self.startHeight
+
+        return overall > 0 ? Float((self.progressHeight - self.startHeight)) / Float(overall) : 0
+    }
+}
+
+public extension BlockProgress {
+    static let nullProgress = BlockProgress(startHeight: 0, targetHeight: 0, progressHeight: 0)
 }
