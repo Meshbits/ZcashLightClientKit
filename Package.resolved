@@ -120,10 +120,10 @@
     {
       "identity" : "zcash-light-client-ffi",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/zcash-hackworks/zcash-light-client-ffi",
+      "location" : "https://github.com/piratenetwork/pirate-light-client-ffi.git",
       "state" : {
-        "revision" : "9314c83d7a09d88e1c0bd3ff3738a50833325059",
-        "version" : "0.8.0"
+        "revision" : "b07e6fb619a8f0eadd344f4e0d3e81d8a7a0a33a",
+        "version" : "0.1.2"
       }
     }
   ],

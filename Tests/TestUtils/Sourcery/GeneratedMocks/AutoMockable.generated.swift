@@ -2336,11 +2336,14 @@ class ZcashFileManagerMock: ZcashFileManager {
     }
 
 }
-class ZcashRustBackendWeldingMock: ZcashRustBackendWelding {
+actor ZcashRustBackendWeldingMock: ZcashRustBackendWelding {
 
-
+    nonisolated let consensusBranchIdForHeightClosure: ((Int32) throws -> Int32)?
+    
     init(
+        consensusBranchIdForHeightClosure: ((Int32) throws -> Int32)? = nil
     ) {
+        self.consensusBranchIdForHeightClosure = consensusBranchIdForHeightClosure
     }
 
     // MARK: - listAccounts
@@ -2955,19 +2958,10 @@ class ZcashRustBackendWeldingMock: ZcashRustBackendWelding {
     }
     var consensusBranchIdForHeightReceivedHeight: Int32?
     var consensusBranchIdForHeightReturnValue: Int32!
-    var consensusBranchIdForHeightClosure: ((Int32) throws -> Int32)?
+    
 
-    func consensusBranchIdFor(height: Int32) throws -> Int32 {
-        if let error = consensusBranchIdForHeightThrowableError {
-            throw error
-        }
-        consensusBranchIdForHeightCallsCount += 1
-        consensusBranchIdForHeightReceivedHeight = height
-        if let closure = consensusBranchIdForHeightClosure {
-            return try closure(height)
-        } else {
-            return consensusBranchIdForHeightReturnValue
-        }
+    nonisolated func consensusBranchIdFor(height: Int32) throws -> Int32 {
+        try consensusBranchIdForHeightClosure!(height)
     }
 
     // MARK: - initBlockMetadataDb

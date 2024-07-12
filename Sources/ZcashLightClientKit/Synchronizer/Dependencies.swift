@@ -36,13 +36,12 @@ enum Dependencies {
         }
 
         container.register(type: ZcashRustBackendWelding.self, isSingleton: true) { _ in
-            ZcashRustBackend(
+            return ZcashRustBackend(
                 dbData: urls.dataDbURL,
                 fsBlockDbRoot: urls.fsBlockDbRoot,
                 spendParamsPath: urls.spendParamsURL,
                 outputParamsPath: urls.outputParamsURL,
-                networkType: networkType,
-                enableTracing: enableBackendTracing
+                networkType: networkType
             )
         }
 
