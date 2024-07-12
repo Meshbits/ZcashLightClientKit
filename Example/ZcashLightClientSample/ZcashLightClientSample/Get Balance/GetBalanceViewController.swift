@@ -21,8 +21,8 @@ class GetBalanceViewController: UIViewController {
         Task { @MainActor in
             let balanceText = (try? await synchronizer.getAccountBalance()?.saplingBalance.total().formattedString) ?? "0.0"
             let verifiedText = (try? await synchronizer.getAccountBalance()?.saplingBalance.spendableValue.formattedString) ?? "0.0"
-            self.balance.text = "\(balanceText) ZEC"
-            self.verified.text = "\(verifiedText) ZEC"
+            self.balance.text = "\(balanceText) ARRR"
+            self.verified.text = "\(verifiedText) ARRR"
         }
     }
 }
