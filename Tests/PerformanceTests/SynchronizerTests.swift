@@ -54,8 +54,8 @@ class SynchronizerTests: ZcashTestCase {
         }
         let seedBytes = [UInt8](seedData)
         let network = ZcashNetworkBuilder.network(for: .mainnet)
-        let endpoint = LightWalletEndpoint(address: "lightwalletd.electriccoin.co", port: 9067, secure: true)
-
+        let endpoint = LightWalletEndpoint(address: "lightd1.pirate.black", port: 443)
+        
         var synchronizer: SDKSynchronizer?
         for _ in 1...5 {
             let databases = TemporaryDbBuilder.build()
