@@ -18,13 +18,16 @@ struct UTXOFetcherConfig {
 
 protocol UTXOFetcher {
     func fetch(
-        didFetch: @escaping (Float) async -> Void
+        at range: CompactBlockRange,
+        didFetch: (Float) async -> Void
     ) async throws -> (inserted: [UnspentTransactionOutputEntity], skipped: [UnspentTransactionOutputEntity])
 }
 
 struct UTXOFetcherImpl {
+    let accountRepository: AccountRepository
     let blockDownloaderService: BlockDownloaderService
     let config: UTXOFetcherConfig
+    let internalSyncProgress: InternalSyncProgress
     let rustBackend: ZcashRustBackendWelding
     let metrics: SDKMetrics
     let logger: Logger
@@ -32,11 +35,13 @@ struct UTXOFetcherImpl {
 
 extension UTXOFetcherImpl: UTXOFetcher {
     func fetch(
-        didFetch: @escaping (Float) async -> Void
+        at range: CompactBlockRange,
+        didFetch: (Float) async -> Void
     ) async throws -> (inserted: [UnspentTransactionOutputEntity], skipped: [UnspentTransactionOutputEntity]) {
         try Task.checkCancellation()
 
-        let accounts = try await rustBackend.listAccounts()
+        let accounts = try accountRepository.getAll()
+            .map { $0.account }
 
         var tAddresses: [TransparentAddress] = []
         for account in accounts {
@@ -60,6 +65,7 @@ extension UTXOFetcherImpl: UTXOFetcher {
         var refreshed: [UnspentTransactionOutputEntity] = []
         var skipped: [UnspentTransactionOutputEntity] = []
 
+        let startTime = Date()
         let all = Float(utxos.count)
         var counter = Float(0)
         for utxo in utxos {
@@ -76,16 +82,31 @@ extension UTXOFetcherImpl: UTXOFetcher {
 
                 counter += 1
                 await didFetch(counter / all)
+                await internalSyncProgress.set(utxo.height, .latestUTXOFetchedHeight)
             } catch {
                 logger.error("failed to put utxo - error: \(error)")
                 skipped.append(utxo)
             }
         }
 
+        metrics.pushProgressReport(
+            progress: BlockProgress(
+                startHeight: range.lowerBound,
+                targetHeight: range.upperBound,
+                progressHeight: range.upperBound
+            ),
+            start: startTime,
+            end: Date(),
+            batchSize: range.count,
+            operation: .fetchUTXOs
+        )
+
         let result = (inserted: refreshed, skipped: skipped)
 
+        await internalSyncProgress.set(range.upperBound, .latestUTXOFetchedHeight)
+
         if Task.isCancelled {
-            logger.debug("Warning: fetchUnspentTxOutputs cancelled")
+            logger.debug("Warning: fetchUnspentTxOutputs on range \(range) cancelled")
         }
 
         return result
