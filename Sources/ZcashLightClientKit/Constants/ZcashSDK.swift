@@ -113,6 +113,8 @@ public enum ZcashSDK {
     /// this before retrying.
     public static let defaultMaxBackOffInterval: TimeInterval = 600
 
+    public static let DefaultScanningBatch = 100
+    
     /// Default number of blocks to rewind when a chain reorg is detected. This should be large enough to recover from the
     /// reorg but smaller than the theoretical max reorg size of 100.
     public static let defaultRewindDistance: Int = 10

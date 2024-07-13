@@ -1,6 +1,6 @@
 //
 //  ClosureSDKSynchronizer.swift
-//  
+//
 //
 //  Created by Michal Fousek on 20.03.2023.
 //
@@ -33,12 +33,12 @@ extension ClosureSDKSynchronizer: ClosureSynchronizer {
 
     public func prepare(
         with seed: [UInt8]?,
+        viewingKeys: [UnifiedFullViewingKey],
         walletBirthday: BlockHeight,
-        for walletMode: WalletInitMode,
         completion: @escaping (Result<Initializer.InitializationResult, Error>) -> Void
     ) {
         AsyncToClosureGateway.executeThrowingAction(completion) {
-            return try await self.synchronizer.prepare(with: seed, walletBirthday: walletBirthday, for: walletMode)
+            return try await self.synchronizer.prepare(with: seed, viewingKeys: viewingKeys, walletBirthday: walletBirthday)
         }
     }
 
@@ -70,46 +70,6 @@ extension ClosureSDKSynchronizer: ClosureSynchronizer {
         }
     }
 
-    public func proposeTransfer(
-        accountIndex: Int,
-        recipient: Recipient,
-        amount: Zatoshi,
-        memo: Memo?,
-        completion: @escaping (Result<Proposal, Error>) -> Void
-    ) {
-        AsyncToClosureGateway.executeThrowingAction(completion) {
-            try await self.synchronizer.proposeTransfer(accountIndex: accountIndex, recipient: recipient, amount: amount, memo: memo)
-        }
-    }
-
-    public func proposeShielding(
-        accountIndex: Int,
-        shieldingThreshold: Zatoshi,
-        memo: Memo,
-        transparentReceiver: TransparentAddress? = nil,
-        completion: @escaping (Result<Proposal?, Error>) -> Void
-    ) {
-        AsyncToClosureGateway.executeThrowingAction(completion) {
-            try await self.synchronizer.proposeShielding(
-                accountIndex: accountIndex,
-                shieldingThreshold: shieldingThreshold,
-                memo: memo,
-                transparentReceiver: transparentReceiver
-            )
-        }
-    }
-
-    public func createProposedTransactions(
-        proposal: Proposal,
-        spendingKey: UnifiedSpendingKey,
-        completion: @escaping (Result<AsyncThrowingStream<TransactionSubmitResult, Error>, Error>) -> Void
-    ) {
-        AsyncToClosureGateway.executeThrowingAction(completion) {
-            try await self.synchronizer.createProposedTransactions(proposal: proposal, spendingKey: spendingKey)
-        }
-    }
-
-    @available(*, deprecated, message: "Upcoming SDK 2.1 will create multiple transactions at once for some recipients.")
     public func sendToAddress(
         spendingKey: UnifiedSpendingKey,
         zatoshi: Zatoshi,
@@ -122,7 +82,6 @@ extension ClosureSDKSynchronizer: ClosureSynchronizer {
         }
     }
 
-    @available(*, deprecated, message: "Upcoming SDK 2.1 will create multiple transactions at once for some recipients.")
     public func shieldFunds(
         spendingKey: UnifiedSpendingKey,
         memo: Memo,
@@ -131,6 +90,12 @@ extension ClosureSDKSynchronizer: ClosureSynchronizer {
     ) {
         AsyncToClosureGateway.executeThrowingAction(completion) {
             try await self.synchronizer.shieldFunds(spendingKey: spendingKey, memo: memo, shieldingThreshold: shieldingThreshold)
+        }
+    }
+
+    public func pendingTransactions(completion: @escaping ([ZcashTransaction.Overview]) -> Void) {
+        AsyncToClosureGateway.executeAction(completion) {
+            await self.synchronizer.pendingTransactions
         }
     }
 
@@ -188,9 +153,21 @@ extension ClosureSDKSynchronizer: ClosureSynchronizer {
         }
     }
 
-    public func getAccountBalance(accountIndex: Int, completion: @escaping (Result<AccountBalance?, Error>) -> Void) {
+    public func getTransparentBalance(accountIndex: Int, completion: @escaping (Result<WalletBalance, Error>) -> Void) {
         AsyncToClosureGateway.executeThrowingAction(completion) {
-            try await self.synchronizer.getAccountBalance(accountIndex: accountIndex)
+            try await self.synchronizer.getTransparentBalance(accountIndex: accountIndex)
+        }
+    }
+
+    public func getShieldedBalance(accountIndex: Int, completion: @escaping (Result<Zatoshi, Error>) -> Void) {
+        AsyncToClosureGateway.executeThrowingAction(completion) {
+            try await self.synchronizer.getShieldedBalance(accountIndex: accountIndex)
+        }
+    }
+
+    public func getShieldedVerifiedBalance(accountIndex: Int, completion: @escaping (Result<Zatoshi, Error>) -> Void) {
+        AsyncToClosureGateway.executeThrowingAction(completion) {
+            try await self.synchronizer.getShieldedVerifiedBalance(accountIndex: accountIndex)
         }
     }
 

@@ -14,7 +14,7 @@ public enum ZcashTransaction {
         /// mined height and expiry height of a transaction.
         public enum State {
             /// transaction has a `minedHeight` that's greater or equal than
-            /// `ZcashSDK.defaultStaleTolerance` confirmations.
+            /// `PirateSDK.defaultStaleTolerance` confirmations.
             case confirmed
             /// transaction has no `minedHeight` but current known height is less than
             /// `expiryHeight`.
@@ -25,9 +25,9 @@ public enum ZcashTransaction {
             init(
                 currentHeight: BlockHeight,
                 minedHeight: BlockHeight?,
-                expiredUnmined: Bool?
+                expiredUnmined: Bool
             ) {
-                guard let expiredUnmined, !expiredUnmined else {
+                guard !expiredUnmined else {
                     self = .expired
                     return
                 }
@@ -48,6 +48,7 @@ public enum ZcashTransaction {
         public let blockTime: TimeInterval?
         public let expiryHeight: BlockHeight?
         public let fee: Zatoshi?
+        public let id: Int
         public let index: Int?
         public var isSentTransaction: Bool { value < Zatoshi(0) }
         public let hasChange: Bool
@@ -58,14 +59,13 @@ public enum ZcashTransaction {
         public let receivedNoteCount: Int
         public let sentNoteCount: Int
         public let value: Zatoshi
-        public let isExpiredUmined: Bool?
+        public let isExpiredUmined: Bool
     }
 
     public struct Output {
         public enum Pool {
             case transaparent
             case sapling
-            case orchard
             case other(Int)
             init(rawValue: Int) {
                 switch rawValue {
@@ -73,15 +73,13 @@ public enum ZcashTransaction {
                     self = .transaparent
                 case 2:
                     self = .sapling
-                case 3:
-                    self = .orchard
                 default:
                     self = .other(rawValue)
                 }
             }
         }
 
-        public let rawID: Data
+        public let idTx: Int
         public let pool: Pool
         public let index: Int
         public let fromAccount: Int?
@@ -101,11 +99,11 @@ public enum ZcashTransaction {
 
 extension ZcashTransaction.Output {
     enum Column {
-        static let rawID = Expression<Blob>("txid")
+        static let idTx = Expression<Int>("id_tx")
         static let pool = Expression<Int>("output_pool")
         static let index = Expression<Int>("output_index")
-        static let toAccount = Expression<Int?>("to_account_id")
-        static let fromAccount = Expression<Int?>("from_account_id")
+        static let toAccount = Expression<Int?>("to_account")
+        static let fromAccount = Expression<Int?>("from_account")
         static let toAddress = Expression<String?>("to_address")
         static let value = Expression<Int64>("value")
         static let isChange = Expression<Bool>("is_change")
@@ -114,13 +112,13 @@ extension ZcashTransaction.Output {
 
     init(row: Row) throws {
         do {
-            rawID = Data(blob: try row.get(Column.rawID))
+            idTx = try row.get(Column.idTx)
             pool = .init(rawValue: try row.get(Column.pool))
             index = try row.get(Column.index)
             fromAccount = try row.get(Column.fromAccount)
             value = Zatoshi(try row.get(Column.value))
             isChange = try row.get(Column.isChange)
-            
+
             if
                 let outputRecipient = try row.get(Column.toAddress),
                 let metadata = DerivationTool.getAddressMetadata(outputRecipient)
@@ -146,6 +144,7 @@ extension ZcashTransaction.Output {
 extension ZcashTransaction.Overview {
     enum Column {
         static let accountId = Expression<Int>("account_id")
+        static let id = Expression<Int>("id_tx")
         static let minedHeight = Expression<BlockHeight?>("mined_height")
         static let index = Expression<Int?>("tx_index")
         static let rawID = Expression<Blob>("txid")
@@ -158,13 +157,14 @@ extension ZcashTransaction.Overview {
         static let receivedNoteCount = Expression<Int>("received_note_count")
         static let memoCount = Expression<Int>("memo_count")
         static let blockTime = Expression<Int64?>("block_time")
-        static let expiredUnmined = Expression<Bool?>("expired_unmined")
+        static let expiredUnmined = Expression<Bool>("expired_unmined")
     }
 
     init(row: Row) throws {
         do {
             self.accountId = try row.get(Column.accountId)
             self.expiryHeight = try row.get(Column.expiryHeight)
+            self.id = try row.get(Column.id)
             self.index = try row.get(Column.index)
             self.hasChange = try row.get(Column.hasChange)
             self.memoCount = try row.get(Column.memoCount)
@@ -174,7 +174,7 @@ extension ZcashTransaction.Overview {
             self.sentNoteCount = try row.get(Column.sentNoteCount)
             self.value = Zatoshi(try row.get(Column.value))
             self.isExpiredUmined = try row.get(Column.expiredUnmined)
-            
+
             if let blockTime = try row.get(Column.blockTime) {
                 self.blockTime = TimeInterval(blockTime)
             } else {

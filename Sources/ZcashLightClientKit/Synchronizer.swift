@@ -101,6 +101,9 @@ public protocol Synchronizer: AnyObject {
     /// This stream is backed by `PassthroughSubject`. Check `SynchronizerEvent` to see which events may be emitted.
     var eventStream: AnyPublisher<SynchronizerEvent, Never> { get }
 
+    /// An object that when enabled collects mertrics from the synchronizer
+    var metrics: SDKMetrics { get }
+    
     /// Initialize the wallet. The ZIP-32 seed bytes can optionally be passed to perform
     /// database migrations. most of the times the seed won't be needed. If they do and are
     /// not provided this will fail with `InitializationResult.seedRequired`. It could
@@ -112,11 +115,9 @@ public protocol Synchronizer: AnyObject {
     /// do not already exist). These files can be given a prefix for scenarios where multiple wallets
     ///
     /// - Parameters:
-    ///   - seed: ZIP-32 Seed bytes for the wallet that will be initialized
+    ///   - seed: ZIP-32 Seed bytes for the wallet that will be initialized.
+    ///   - viewingKeys: Viewing key derived from seed.
     ///   - walletBirthday: Birthday of wallet.
-    ///   - for: [walletMode] Set `.newWallet` when preparing synchronizer for a brand new generated wallet,
-    ///   `.restoreWallet` when wallet is about to be restored from a seed
-    ///   and  `.existingWallet` for all other scenarios.
     /// - Throws:
     ///     - `aliasAlreadyInUse` if the Alias used to create this instance is already used by other instance.
     ///     - `cantUpdateURLWithAlias` if the updating of paths in `Initilizer` according to alias fails. When this happens it means that
@@ -125,8 +126,8 @@ public protocol Synchronizer: AnyObject {
     ///     - Some other `ZcashError` thrown by lower layer of the SDK.
     func prepare(
         with seed: [UInt8]?,
-        walletBirthday: BlockHeight,
-        for walletMode: WalletInitMode
+        viewingKeys: [UnifiedFullViewingKey],
+        walletBirthday: BlockHeight
     ) async throws -> Initializer.InitializationResult
 
     /// Starts this synchronizer within the given scope.
@@ -154,70 +155,15 @@ public protocol Synchronizer: AnyObject {
     /// - Parameter accountIndex: the optional accountId whose address is of interest. By default, the first account is used.
     /// - Returns the address or nil if account index is incorrect
     func getTransparentAddress(accountIndex: Int) async throws -> TransparentAddress
-
-    /// Creates a proposal for transferring funds to the given recipient.
-    ///
-    /// - Parameter accountIndex: the account from which to transfer funds.
-    /// - Parameter recipient: the recipient's address.
-    /// - Parameter amount: the amount to send in Zatoshi.
-    /// - Parameter memo: an optional memo to include as part of the proposal's transactions. Use `nil` when sending to transparent receivers otherwise the function will throw an error.
-    ///
-    /// If `prepare()` hasn't already been called since creation of the synchronizer instance or since the last wipe then this method throws
-    /// `SynchronizerErrors.notPrepared`.
-    func proposeTransfer(
-        accountIndex: Int,
-        recipient: Recipient,
-        amount: Zatoshi,
-        memo: Memo?
-    ) async throws -> Proposal
-
-    /// Creates a proposal for shielding any transparent funds received by the given account.
-    ///
-    /// - Parameter accountIndex: the account for which to shield funds.
-    /// - Parameter shieldingThreshold: the minimum transparent balance required before a proposal will be created.
-    /// - Parameter memo: an optional memo to include as part of the proposal's transactions.
-    /// - Parameter transparentReceiver: a specific transparent receiver within the account
-    ///             that should be the source of transparent funds. Default is `nil` which
-    ///             will select whichever of the account's transparent receivers has funds
-    ///             to shield.
-    ///
-    /// Returns the proposal, or `nil` if the transparent balance that would be shielded
-    /// is zero or below `shieldingThreshold`.
-    ///
-    /// If `prepare()` hasn't already been called since creation of the synchronizer instance or since the last wipe then this method throws
-    /// `SynchronizerErrors.notPrepared`.
-    func proposeShielding(
-        accountIndex: Int,
-        shieldingThreshold: Zatoshi,
-        memo: Memo,
-        transparentReceiver: TransparentAddress?
-    ) async throws -> Proposal?
-
-    /// Creates the transactions in the given proposal.
-    ///
-    /// - Parameter proposal: the proposal for which to create transactions.
-    /// - Parameter spendingKey: the `UnifiedSpendingKey` associated with the account for which the proposal was created.
-    ///
-    /// Returns a stream of objects for the transactions that were created as part of the
-    /// proposal, indicating whether they were submitted to the network or if an error
-    /// occurred.
-    ///
-    /// If `prepare()` hasn't already been called since creation of the synchronizer instance
-    /// or since the last wipe then this method throws `SynchronizerErrors.notPrepared`.
-    func createProposedTransactions(
-        proposal: Proposal,
-        spendingKey: UnifiedSpendingKey
-    ) async throws -> AsyncThrowingStream<TransactionSubmitResult, Error>
-
+    
     /// Sends zatoshi.
     /// - Parameter spendingKey: the `UnifiedSpendingKey` that allows spends to occur.
     /// - Parameter zatoshi: the amount to send in Zatoshi.
     /// - Parameter toAddress: the recipient's address.
     /// - Parameter memo: an `Optional<Memo>`with the memo to include as part of the transaction. send `nil` when sending to transparent receivers otherwise the function will throw an error
     ///
-    /// - NOTE: If `prepare()` hasn't already been called since creating of synchronizer instance or since the last wipe then this method throws
+    /// If `prepare()` hasn't already been called since creating of synchronizer instance or since the last wipe then this method throws
     /// `SynchronizerErrors.notPrepared`.
-    @available(*, deprecated, message: "Upcoming SDK 2.1 will create multiple transactions at once for some recipients.")
     func sendToAddress(
         spendingKey: UnifiedSpendingKey,
         zatoshi: Zatoshi,
@@ -225,30 +171,20 @@ public protocol Synchronizer: AnyObject {
         memo: Memo?
     ) async throws -> ZcashTransaction.Overview
 
-    /// Attempts to propose fulfilling a [ZIP-321](https://zips.z.cash/zip-0321) payment URI using the given `accountIndex`
-    ///  - Parameter uri: a valid ZIP-321 payment URI
-    ///  - Parameter accountIndex: the account index that allows spends to occur.
-    ///
-    /// - NOTE: If `prepare()` hasn't already been called since creating of synchronizer instance or since the last wipe then this method throws
-    /// `SynchronizerErrors.notPrepared`.
-    func proposefulfillingPaymentURI(
-        _ uri: String,
-        accountIndex: Int
-    ) async throws -> Proposal
-
     /// Shields transparent funds from the given private key into the best shielded pool of the account associated to the given `UnifiedSpendingKey`.
     /// - Parameter spendingKey: the `UnifiedSpendingKey` that allows to spend transparent funds
     /// - Parameter memo: the optional memo to include as part of the transaction.
-    /// - Parameter shieldingThreshold: the minimum transparent balance required before a transaction will be created.
     ///
-    /// - Note: If `prepare()` hasn't already been called since creating of synchronizer instance or since the last wipe then this method throws
+    /// If `prepare()` hasn't already been called since creating of synchronizer instance or since the last wipe then this method throws
     /// `SynchronizerErrors.notPrepared`.
-    @available(*, deprecated, message: "Upcoming SDK 2.1 will create multiple transactions at once for some recipients.")
     func shieldFunds(
         spendingKey: UnifiedSpendingKey,
         memo: Memo,
         shieldingThreshold: Zatoshi
     ) async throws -> ZcashTransaction.Overview
+
+    /// all outbound pending transactions that have been sent but are awaiting confirmations
+    var pendingTransactions: [ZcashTransaction.Overview] { get async }
 
     /// all the transactions that are on the blockchain
     var transactions: [ZcashTransaction.Overview] { get async }
@@ -262,11 +198,6 @@ public protocol Synchronizer: AnyObject {
     /// A repository serving transactions in a paginated manner
     /// - Parameter kind: Transaction Kind expected from this PaginatedTransactionRepository
     func paginatedTransactions(of kind: TransactionKind) -> PaginatedTransactionRepository
-
-    /// Get all memos for `transaction.rawID`.
-    ///
-    // sourcery: mockedName="getMemosForRawID"
-    func getMemos(for rawID: Data) async throws -> [Memo]
 
     /// Get all memos for `transaction`.
     ///
@@ -283,7 +214,7 @@ public protocol Synchronizer: AnyObject {
 
     /// Attempt to get outputs involved in a given Transaction.
     /// - parameter transaction: A transaction overview
-    /// - returns the array of outputs involved in this transaction. Transparent outputs might not be tracked 
+    /// - returns the array of outputs involved in this transaction. Transparent outputs might not be tracked
     ///
     // sourcery: mockedName="getTransactionOutputsForTransaction"
     func getTransactionOutputs(for transaction: ZcashTransaction.Overview) async -> [ZcashTransaction.Output]
@@ -295,19 +226,31 @@ public protocol Synchronizer: AnyObject {
     /// - Returns: an array with the given Transactions or an empty array
     func allTransactions(from transaction: ZcashTransaction.Overview, limit: Int) async throws -> [ZcashTransaction.Overview]
 
+    /// Fetch all pending transactions
+    /// - Returns: an array of transactions which are considered pending confirmation. can be empty
+    func allPendingTransactions() async throws -> [ZcashTransaction.Overview]
+
     /// Returns the latest block height from the provided Lightwallet endpoint
     func latestHeight() async throws -> BlockHeight
 
     /// Returns the latests UTXOs for the given address from the specified height on
     ///
-    /// If `prepare()` hasn't already been called since creation of the synchronizer instance or since the last wipe then this method throws
+    /// If `prepare()` hasn't already been called since creating of synchronizer instance or since the last wipe then this method throws
     /// `SynchronizerErrors.notPrepared`.
     func refreshUTXOs(address: TransparentAddress, from height: BlockHeight) async throws -> RefreshedUTXOs
 
-    /// Account balances from the given account index
+    /// Returns the last stored transparent balance
+    func getTransparentBalance(accountIndex: Int) async throws -> WalletBalance
+
+    /// get (unverified) balance from the given account index
     /// - Parameter accountIndex: the index of the account
-    /// - Returns: `AccountBalance`, struct that holds sapling and unshielded balances or `nil` when no account is associated with `accountIndex`
-    func getAccountBalance(accountIndex: Int) async throws -> AccountBalance?
+    /// - Returns: balance in `Zatoshi`
+    func getShieldedBalance(accountIndex: Int) async throws -> Zatoshi
+
+    /// get verified balance from the given account index
+    /// - Parameter accountIndex: the index of the account
+    /// - Returns: balance in `Zatoshi`
+    func getShieldedVerifiedBalance(accountIndex: Int) async throws -> Zatoshi
 
     /// Rescans the known blocks with the current keys.
     ///
@@ -324,7 +267,7 @@ public protocol Synchronizer: AnyObject {
     /// `rewind(policy:)` itself doesn't start the sync process when it's done and it doesn't trigger notifications as regorg would. After it is done
     /// you have start the sync process by calling `start()`
     ///
-    /// If `prepare()` hasn't already been called since creation of the synchronizer instance or since the last wipe then returned publisher emits
+    /// If `prepare()` hasn't already been called since creating of synchronizer instance or since the last wipe then returned publisher emits
     /// `SynchronizerErrors.notPrepared` error.
     ///
     /// - Parameter policy: the rewind policy
@@ -348,20 +291,10 @@ public protocol Synchronizer: AnyObject {
     ///
     /// Returned publisher emits `initializerAliasAlreadyInUse` if the updating of paths in `Initilizer` according to alias fails. When
     /// this happens it means that some path passed to `Initializer` is invalid. The SDK can't recover from this and this instance won't do anything.
-    /// 
-    func wipe() -> AnyPublisher<Void, Error>
-    
-    /// This API stops the synchronization and re-initalizes everything according to the new endpoint provided.
-    /// It can be called anytime.
-    /// - Throws: ZcashError when failures occur and related to `synchronizer.start(retry: Bool)`, it's the only throwing operation
-    /// during the whole endpoint change.
-    func switchTo(endpoint: LightWalletEndpoint) async throws
-
-    /// Checks whether the given seed is relevant to any of the derived accounts in the wallet.
     ///
-    /// - parameter seed: byte array of the seed
-    func isSeedRelevantToAnyDerivedAccount(seed: [UInt8]) async throws -> Bool
+    func wipe() -> AnyPublisher<Void, Error>
 }
+
 
 public enum SyncStatus: Equatable {
     public static func == (lhs: SyncStatus, rhs: SyncStatus) -> Bool {
@@ -385,32 +318,20 @@ public enum SyncStatus: Equatable {
     /// When set, a UI element may want to turn green.
     case upToDate
 
-    /// Indicates that this Synchronizer was succesfully stopped via `stop()` method.
-    case stopped
-    
     case error(_ error: Error)
     
     public var isSyncing: Bool {
-        if case .syncing = self {
-            return true
-        }
-        
+        guard case .syncing = self else { return true }
         return false
     }
     
     public var isSynced: Bool {
-        if case .upToDate = self {
-            return true
-        }
-        
+        guard case .upToDate = self else { return true }
         return false
     }
 
     public var isPrepared: Bool {
-        if case .unprepared = self {
-            return false
-        }
-        
+        guard case .unprepared = self else { return false }
         return true
     }
 
@@ -418,7 +339,6 @@ public enum SyncStatus: Equatable {
         switch self {
         case .unprepared: return "unprepared"
         case .syncing: return "syncing"
-        case .stopped: return "stopped"
         case .upToDate: return "up to date"
         case .error: return "error"
         }
@@ -431,9 +351,15 @@ enum InternalSyncStatus: Equatable {
     /// taking other maintenance steps that need to occur after an upgrade.
     case unprepared
 
-    /// Indicates that this Synchronizer is actively processing new blocks (consists of fetch, scan and enhance operations)
-    case syncing(Float)
-    
+    case syncing(_ progress: BlockProgress)
+
+    /// Indicates that this Synchronizer is actively enhancing newly scanned blocks
+    /// with additional transaction details, fetched from the server.
+    case enhancing(_ progress: EnhancementProgress)
+
+    /// fetches the transparent balance and stores it locally
+    case fetching(_ progress: Float)
+
     /// Indicates that this Synchronizer is fully up to date and ready for all wallet functions.
     /// When set, a UI element may want to turn green.
     case synced
@@ -448,33 +374,35 @@ enum InternalSyncStatus: Equatable {
     case error(_ error: Error)
     
     public var isSyncing: Bool {
-        if case .syncing = self {
+        switch self {
+        case .syncing, .enhancing, .fetching:
             return true
+        default:
+            return false
         }
-        
-        return false
     }
     
     public var isSynced: Bool {
-        if case .synced = self {
-            return true
+        switch self {
+        case .synced:   return true
+        default:        return false
         }
-        
-        return false
     }
 
     public var isPrepared: Bool {
         if case .unprepared = self {
             return false
+        } else {
+            return true
         }
-        
-        return true
     }
 
     public var briefDebugDescription: String {
         switch self {
         case .unprepared: return "unprepared"
         case .syncing: return "syncing"
+        case .enhancing: return "enhancing"
+        case .fetching: return "fetching"
         case .synced: return "synced"
         case .stopped: return "stopped"
         case .disconnected: return "disconnected"

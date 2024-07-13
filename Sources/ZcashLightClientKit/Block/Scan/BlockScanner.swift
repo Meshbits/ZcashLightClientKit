@@ -1,6 +1,6 @@
 //
 //  CompactBlockProcessing.swift
-//  ZcashLightClientKit
+//  PirateLightClientKit
 //
 //  Created by Francisco Gindre on 10/15/19.
 //  Copyright © 2019 Electric Coin Company. All rights reserved.
@@ -100,7 +100,7 @@ extension BlockScannerImpl: BlockScanner {
     }
 
     private func scanBatchSize(startScanHeight height: BlockHeight, network: NetworkType) -> UInt32 {
-        assert(config.scanningBatchSize > 0, "PirateSDK.DefaultScanningBatch must be larger than 0!")
+        assert(config.scanningBatchSize > 0, "ZcashSDK.DefaultScanningBatch must be larger than 0!")
         guard network == .mainnet else { return UInt32(config.scanningBatchSize) }
 
         //if height > 1_650_000 {
@@ -112,7 +112,6 @@ extension BlockScannerImpl: BlockScanner {
         return UInt32(config.scanningBatchSize)
     }
 }
-
 
 public struct BlockProgress: Equatable {
     public let startHeight: BlockHeight

@@ -90,7 +90,6 @@ public class Initializer {
     struct URLs {
         let fsBlockDbRoot: URL
         let dataDbURL: URL
-        let generalStorageURL: URL
         let spendParamsURL: URL
         let outputParamsURL: URL
     }
@@ -99,7 +98,7 @@ public class Initializer {
         case success
         case seedRequired
     }
-    
+
     public enum LoggingPolicy {
         case `default`(OSLogger.LogLevel)
         case custom(Logger)
@@ -111,17 +110,17 @@ public class Initializer {
 
     let container: DIContainer
     let alias: ZcashSynchronizerAlias
-    var endpoint: LightWalletEndpoint
+    let endpoint: LightWalletEndpoint
     let fsBlockDbRoot: URL
-    let generalStorageURL: URL
     let dataDbURL: URL
     let spendParamsURL: URL
     let outputParamsURL: URL
     let saplingParamsSourceURL: SaplingParamsSourceURL
-    var lightWalletService: LightWalletService
+    let lightWalletService: LightWalletService
     let transactionRepository: TransactionRepository
+    let accountRepository: AccountRepository
     let storage: CompactBlockRepository
-    var blockDownloaderService: BlockDownloaderService
+    let blockDownloaderService: BlockDownloaderService
     let network: ZcashNetwork
     let logger: Logger
     let rustBackend: ZcashRustBackendWelding
@@ -143,20 +142,13 @@ public class Initializer {
     ///  - cacheDbURL: previous location of the cacheDb. If you don't know what a cacheDb is and you are adopting this SDK for the first time then
     ///                just pass `nil` here.
     ///  - fsBlockDbRoot: location of the compact blocks cache
-    ///  - generalStorageURL: Location of the directory where the SDK can store any information it needs. A directory doesn't have to exist. But the
-    ///                       SDK must be able to write to this location after it creates this directory. It is suggested that this directory is
-    ///                       a subdirectory of the `Documents` directory. If this information is stored in `Documents` then the system itself won't
-    ///                       remove these data.
     ///  - dataDbURL: Location of the data db
     ///  - endpoint: the endpoint representing the lightwalletd instance you want to point to
     ///  - spendParamsURL: location of the spend parameters
     ///  - outputParamsURL: location of the output parameters
-    ///  - loggingPolicy: the `LoggingPolicy` for the logger
-    ///  - enableBackendTracing: this enables tracing for super detailed debugging. it will slow down everything 10 or 100x.
     convenience public init(
         cacheDbURL: URL?,
         fsBlockDbRoot: URL,
-        generalStorageURL: URL,
         dataDbURL: URL,
         endpoint: LightWalletEndpoint,
         network: ZcashNetwork,
@@ -164,18 +156,16 @@ public class Initializer {
         outputParamsURL: URL,
         saplingParamsSourceURL: SaplingParamsSourceURL,
         alias: ZcashSynchronizerAlias = .default,
-        loggingPolicy: LoggingPolicy = .default(.debug),
-        enableBackendTracing: Bool = false
+        loggingPolicy: LoggingPolicy = .default(.debug)
     ) {
         let container = DIContainer()
-        
+
         // It's not possible to fail from constructor. Technically it's possible but it can be pain for the client apps to handle errors thrown
         // from constructor. So `parsingError` is just stored in initializer and `SDKSynchronizer.prepare()` throw this error if it exists.
         let (updatedURLs, parsingError) = Self.setup(
             container: container,
             cacheDbURL: cacheDbURL,
             fsBlockDbRoot: fsBlockDbRoot,
-            generalStorageURL: generalStorageURL,
             dataDbURL: dataDbURL,
             endpoint: endpoint,
             network: network,
@@ -183,10 +173,9 @@ public class Initializer {
             outputParamsURL: outputParamsURL,
             saplingParamsSourceURL: saplingParamsSourceURL,
             alias: alias,
-            loggingPolicy: loggingPolicy,
-            enableBackendTracing: enableBackendTracing
+            loggingPolicy: loggingPolicy
         )
-        
+
         self.init(
             container: container,
             cacheDbURL: cacheDbURL,
@@ -205,7 +194,6 @@ public class Initializer {
         container: DIContainer,
         cacheDbURL: URL?,
         fsBlockDbRoot: URL,
-        generalStorageURL: URL,
         dataDbURL: URL,
         endpoint: LightWalletEndpoint,
         network: ZcashNetwork,
@@ -213,8 +201,7 @@ public class Initializer {
         outputParamsURL: URL,
         saplingParamsSourceURL: SaplingParamsSourceURL,
         alias: ZcashSynchronizerAlias = .default,
-        loggingPolicy: LoggingPolicy = .default(.debug),
-        enableBackendTracing: Bool = false
+        loggingPolicy: LoggingPolicy = .default(.debug)
     ) {
         // It's not possible to fail from constructor. Technically it's possible but it can be pain for the client apps to handle errors thrown
         // from constructor. So `parsingError` is just stored in initializer and `SDKSynchronizer.prepare()` throw this error if it exists.
@@ -222,7 +209,6 @@ public class Initializer {
             container: container,
             cacheDbURL: cacheDbURL,
             fsBlockDbRoot: fsBlockDbRoot,
-            generalStorageURL: generalStorageURL,
             dataDbURL: dataDbURL,
             endpoint: endpoint,
             network: network,
@@ -230,8 +216,7 @@ public class Initializer {
             outputParamsURL: outputParamsURL,
             saplingParamsSourceURL: saplingParamsSourceURL,
             alias: alias,
-            loggingPolicy: loggingPolicy,
-            enableBackendTracing: enableBackendTracing
+            loggingPolicy: loggingPolicy
         )
 
         self.init(
@@ -246,7 +231,7 @@ public class Initializer {
             loggingPolicy: loggingPolicy
         )
     }
-    
+
     private init(
         container: DIContainer,
         cacheDbURL: URL?,
@@ -262,7 +247,6 @@ public class Initializer {
         self.cacheDbURL = cacheDbURL
         self.rustBackend = container.resolve(ZcashRustBackendWelding.self)
         self.fsBlockDbRoot = urls.fsBlockDbRoot
-        self.generalStorageURL = urls.generalStorageURL
         self.dataDbURL = urls.dataDbURL
         self.endpoint = endpoint
         self.spendParamsURL = urls.spendParamsURL
@@ -271,20 +255,29 @@ public class Initializer {
         self.alias = alias
         self.lightWalletService = container.resolve(LightWalletService.self)
         self.transactionRepository = container.resolve(TransactionRepository.self)
+        self.accountRepository = AccountRepositoryBuilder.build(
+            dataDbURL: urls.dataDbURL,
+            readOnly: true,
+            caching: true,
+            logger: container.resolve(Logger.self)
+        )
         self.storage = container.resolve(CompactBlockRepository.self)
         self.blockDownloaderService = container.resolve(BlockDownloaderService.self)
         self.network = network
-        self.walletBirthday = container.resolve(CheckpointSource.self).saplingActivation.height
+        self.walletBirthday = Checkpoint.birthday(with: 0, network: network).height
         self.urlsParsingError = urlsParsingError
         self.logger = container.resolve(Logger.self)
     }
-    
+
+    private static func makeLightWalletServiceFactory(endpoint: LightWalletEndpoint) -> LightWalletServiceFactory {
+        return LightWalletServiceFactory(endpoint: endpoint)
+    }
+
     // swiftlint:disable:next function_parameter_count
     private static func setup(
         container: DIContainer,
         cacheDbURL: URL?,
         fsBlockDbRoot: URL,
-        generalStorageURL: URL,
         dataDbURL: URL,
         endpoint: LightWalletEndpoint,
         network: ZcashNetwork,
@@ -292,31 +285,28 @@ public class Initializer {
         outputParamsURL: URL,
         saplingParamsSourceURL: SaplingParamsSourceURL,
         alias: ZcashSynchronizerAlias,
-        loggingPolicy: LoggingPolicy = .default(.debug),
-        enableBackendTracing: Bool = false
+        loggingPolicy: LoggingPolicy = .default(.debug)
     ) -> (URLs, ZcashError?) {
         let urls = URLs(
             fsBlockDbRoot: fsBlockDbRoot,
             dataDbURL: dataDbURL,
-            generalStorageURL: generalStorageURL,
             spendParamsURL: spendParamsURL,
             outputParamsURL: outputParamsURL
         )
-        
+
         // It's not possible to fail from constructor. Technically it's possible but it can be pain for the client apps to handle errors thrown
         // from constructor. So `parsingError` is just stored in initializer and `SDKSynchronizer.prepare()` throw this error if it exists.
         let (updatedURLs, parsingError) = Self.tryToUpdateURLs(with: alias, urls: urls)
-        
+
         Dependencies.setup(
             in: container,
             urls: updatedURLs,
             alias: alias,
             networkType: network.networkType,
             endpoint: endpoint,
-            loggingPolicy: loggingPolicy,
-            enableBackendTracing: enableBackendTracing
+            loggingPolicy: loggingPolicy
         )
-        
+
         return (updatedURLs, parsingError)
     }
 
@@ -370,15 +360,10 @@ public class Initializer {
             return .failure(.initializerCantUpdateURLWithAlias(urls.outputParamsURL))
         }
 
-        guard let updatedGeneralStorageURL = urls.generalStorageURL.updateLastPathComponent(with: alias) else {
-            return .failure(.initializerCantUpdateURLWithAlias(urls.generalStorageURL))
-        }
-
         return .success(
             URLs(
                 fsBlockDbRoot: updatedFsBlockDbRoot,
                 dataDbURL: updatedDataDbURL,
-                generalStorageURL: updatedGeneralStorageURL,
                 spendParamsURL: updatedSpendParamsURL,
                 outputParamsURL: updateOutputParamsURL
             )
@@ -397,38 +382,41 @@ public class Initializer {
     ///
     /// - Parameter seed: ZIP-32 Seed bytes for the wallet that will be initialized
     /// - Throws: `InitializerError.dataDbInitFailed` if the creation of the dataDb fails
-    /// `InitializerError.accountInitFailed` if the account table can't be initialized. 
-    func initialize(with seed: [UInt8]?, walletBirthday: BlockHeight, for walletMode: WalletInitMode) async throws -> InitializationResult {
+    /// `InitializerError.accountInitFailed` if the account table can't be initialized.
+    func initialize(with seed: [UInt8]?, viewingKeys: [UnifiedFullViewingKey], walletBirthday: BlockHeight) async throws -> InitializationResult {
         try await storage.create()
 
         if case .seedRequired = try await rustBackend.initDataDb(seed: seed) {
             return .seedRequired
         }
 
-        let checkpointSource = container.resolve(CheckpointSource.self)
-
-        let checkpoint = checkpointSource.birthday(for: walletBirthday)
+        let checkpoint = Checkpoint.birthday(with: walletBirthday, network: network)
+        do {
+            try await rustBackend.initBlocksTable(
+                height: Int32(checkpoint.height),
+                hash: checkpoint.hash,
+                time: checkpoint.time,
+                saplingTree: checkpoint.saplingTree
+            )
+        } catch ZcashError.rustInitBlocksTableDataDbNotEmpty {
+            // this is fine
+        } catch {
+            throw error
+        }
 
         self.walletBirthday = checkpoint.height
 
-        // If there are no accounts it must be created, the default amount of accounts is 1
-        if let seed, try await rustBackend.listAccounts().isEmpty {
-            var chainTip: UInt32?
-            
-            if walletMode == .restoreWallet, let latestBlockHeight = try? await lightWalletService.latestBlockHeight() {
-                chainTip = UInt32(latestBlockHeight)
-            }
-            
-            _ = try await rustBackend.createAccount(
-                seed: seed,
-                treeState: checkpoint.treeState(),
-                recoverUntil: chainTip
-            )
+        do {
+            try await rustBackend.initAccountsTable(ufvks: viewingKeys)
+        } catch ZcashError.rustInitAccountsTableDataDbNotEmpty {
+            // this is fine
+        } catch {
+            throw error
         }
 
         return .success
     }
-    
+
     /**
     checks if the provided address is a valid sapling address
     */

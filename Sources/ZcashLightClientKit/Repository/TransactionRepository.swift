@@ -1,6 +1,6 @@
 //
 //  TransactionRepository.swift
-//  ZcashLightClientKit
+//  PirateLightClientKit
 //
 //  Created by Francisco Gindre on 11/16/19.
 //

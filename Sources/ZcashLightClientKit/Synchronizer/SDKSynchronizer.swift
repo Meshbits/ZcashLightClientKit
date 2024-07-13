@@ -1,6 +1,6 @@
 //
 //  SDKSynchronizer.swift
-//  ZcashLightClientKit
+//  PirateLightClientKit
 //
 //  Created by Francisco Gindre on 11/6/19.
 //  Copyright © 2019 Electric Coin Company. All rights reserved.
@@ -22,7 +22,7 @@ public class SDKSynchronizer: Synchronizer {
     private let eventSubject = PassthroughSubject<SynchronizerEvent, Never>()
     public var eventStream: AnyPublisher<SynchronizerEvent, Never> { eventSubject.eraseToAnyPublisher() }
 
-    let metrics: SDKMetrics
+    public let metrics: SDKMetrics
     public let logger: Logger
 
     // Don't read this variable directly. Use `status` instead. And don't update this variable directly use `updateStatus()` methods instead.
@@ -39,11 +39,13 @@ public class SDKSynchronizer: Synchronizer {
     public let network: ZcashNetwork
     private let transactionEncoder: TransactionEncoder
     private let transactionRepository: TransactionRepository
+    private let utxoRepository: UnspentTransactionOutputRepository
 
     private let syncSessionIDGenerator: SyncSessionIDGenerator
     private let syncSession: SyncSession
     private let syncSessionTicker: SessionTicker
-    var latestBlocksDataProvider: LatestBlocksDataProvider
+    private var syncStartDate: Date?
+    let latestBlocksDataProvider: LatestBlocksDataProvider
 
     /// Creates an SDKSynchronizer instance
     /// - Parameter initializer: a wallet Initializer object
@@ -53,6 +55,7 @@ public class SDKSynchronizer: Synchronizer {
             initializer: initializer,
             transactionEncoder: WalletTransactionEncoder(initializer: initializer),
             transactionRepository: initializer.transactionRepository,
+            utxoRepository: UTXORepositoryBuilder.build(initializer: initializer),
             blockProcessor: CompactBlockProcessor(
                 initializer: initializer,
                 walletBirthdayProvider: { initializer.walletBirthday }
@@ -66,6 +69,7 @@ public class SDKSynchronizer: Synchronizer {
         initializer: Initializer,
         transactionEncoder: TransactionEncoder,
         transactionRepository: TransactionRepository,
+        utxoRepository: UnspentTransactionOutputRepository,
         blockProcessor: CompactBlockProcessor,
         syncSessionTicker: SessionTicker
     ) {
@@ -74,6 +78,7 @@ public class SDKSynchronizer: Synchronizer {
         self.initializer = initializer
         self.transactionEncoder = transactionEncoder
         self.transactionRepository = transactionRepository
+        self.utxoRepository = utxoRepository
         self.blockProcessor = blockProcessor
         self.network = initializer.network
         self.metrics = initializer.container.resolve(SDKMetrics.self)
@@ -82,7 +87,7 @@ public class SDKSynchronizer: Synchronizer {
         self.syncSession = SyncSession(.nullID)
         self.syncSessionTicker = syncSessionTicker
         self.latestBlocksDataProvider = initializer.container.resolve(LatestBlocksDataProvider.self)
-        
+
         initializer.lightWalletService.connectionStateChange = { [weak self] oldState, newState in
             self?.connectivityStateChanged(oldState: oldState, newState: newState)
         }
@@ -97,10 +102,9 @@ public class SDKSynchronizer: Synchronizer {
         }
     }
 
-    func updateStatus(_ newValue: InternalSyncStatus, updateExternalStatus: Bool = true) async {
+    func updateStatus(_ newValue: InternalSyncStatus) async {
         let oldValue = await underlyingStatus.update(newValue)
-        logger.info("Synchronizer's status updated from \(oldValue) to \(newValue)")
-        await notify(oldStatus: oldValue, newStatus: newValue, updateExternalStatus: updateExternalStatus)
+        await notify(oldStatus: oldValue, newStatus: newValue)
     }
 
     func throwIfUnprepared() throws {
@@ -123,8 +127,8 @@ public class SDKSynchronizer: Synchronizer {
 
     public func prepare(
         with seed: [UInt8]?,
-        walletBirthday: BlockHeight,
-        for walletMode: WalletInitMode
+        viewingKeys: [UnifiedFullViewingKey],
+        walletBirthday: BlockHeight
     ) async throws -> Initializer.InitializationResult {
         guard await status == .unprepared else { return .success }
 
@@ -132,14 +136,16 @@ public class SDKSynchronizer: Synchronizer {
             throw error
         }
 
-        if case .seedRequired = try await self.initializer.initialize(with: seed, walletBirthday: walletBirthday, for: walletMode) {
+        try await utxoRepository.initialise()
+
+        if case .seedRequired = try await self.initializer.initialize(with: seed, viewingKeys: viewingKeys, walletBirthday: walletBirthday) {
             return .seedRequired
         }
-        
+
         await latestBlocksDataProvider.updateWalletBirthday(initializer.walletBirthday)
         await latestBlocksDataProvider.updateScannedData()
-        
-        await updateStatus(.disconnected, updateExternalStatus: false)
+
+        await updateStatus(.disconnected)
 
         return .success
     }
@@ -151,15 +157,15 @@ public class SDKSynchronizer: Synchronizer {
         case .unprepared:
             throw ZcashError.synchronizerNotPrepared
 
-        case .syncing:
+        case .syncing, .enhancing, .fetching:
             logger.warn("warning: Synchronizer started when already running. Next sync process will be started when the current one stops.")
             /// This may look strange but `CompactBlockProcessor` has mechanisms which can handle this situation. So we are fine with calling
             /// it's start here.
             await blockProcessor.start(retry: retry)
 
         case .stopped, .synced, .disconnected, .error:
-            let syncProgress = (try? await initializer.rustBackend.getWalletSummary()?.scanProgress?.progress()) ?? 0
-            await updateStatus(.syncing(syncProgress))
+            await updateStatus(.syncing(.nullProgress))
+            syncStartDate = Date()
             await blockProcessor.start(retry: retry)
         }
     }
@@ -191,14 +197,15 @@ public class SDKSynchronizer: Synchronizer {
 
     // MARK: Handle CompactBlockProcessor.Flow
 
+    // swiftlint:disable:next cyclomatic_complexity
     private func subscribeToProcessorEvents(_ processor: CompactBlockProcessor) async {
         let eventClosure: CompactBlockProcessor.EventClosure = { [weak self] event in
             switch event {
             case let .failed(error):
                 await self?.failed(error: error)
 
-            case let .finished(height):
-                await self?.finished(lastScannedHeight: height)
+            case let .finished(height, foundBlocks):
+                await self?.finished(lastScannedHeight: height, foundBlocks: foundBlocks)
 
             case let .foundTransactions(transactions, range):
                 self?.foundTransactions(transactions: transactions, in: range)
@@ -210,14 +217,17 @@ public class SDKSynchronizer: Synchronizer {
             case let .progressUpdated(progress):
                 await self?.progressUpdated(progress: progress)
 
-            case .syncProgress:
-                break
-                
             case let .storedUTXOs(utxos):
                 self?.storedUTXOs(utxos: utxos)
 
-            case .startedEnhancing, .startedFetching, .startedSyncing:
-                break
+            case .startedEnhancing:
+                await self?.updateStatus(.enhancing(.zero))
+
+            case .startedFetching:
+                await self?.updateStatus(.fetching(0))
+
+            case .startedSyncing:
+                await self?.updateStatus(.syncing(.nullProgress))
 
             case .stopped:
                 await self?.updateStatus(.stopped)
@@ -234,10 +244,17 @@ public class SDKSynchronizer: Synchronizer {
         await updateStatus(.error(error))
     }
 
-    private func finished(lastScannedHeight: BlockHeight) async {
+    private func finished(lastScannedHeight: BlockHeight, foundBlocks: Bool) async {
         await latestBlocksDataProvider.updateScannedData()
 
         await updateStatus(.synced)
+
+        if let syncStartDate {
+            metrics.pushSyncReport(
+                start: syncStartDate,
+                end: Date()
+            )
+        }
     }
 
     private func foundTransactions(transactions: [ZcashTransaction.Overview], in range: CompactBlockRange) {
@@ -246,7 +263,7 @@ public class SDKSynchronizer: Synchronizer {
         }
     }
 
-    private func progressUpdated(progress: Float) async {
+    private func progressUpdated(progress: CompactBlockProgress) async {
         let newStatus = InternalSyncStatus(progress)
         await updateStatus(newStatus)
     }
@@ -258,99 +275,6 @@ public class SDKSynchronizer: Synchronizer {
     }
 
     // MARK: Synchronizer methods
-
-    public func proposeTransfer(accountIndex: Int, recipient: Recipient, amount: Zatoshi, memo: Memo?) async throws -> Proposal {
-        try throwIfUnprepared()
-
-        if case Recipient.transparent = recipient, memo != nil {
-            throw ZcashError.synchronizerSendMemoToTransparentAddress
-        }
-
-        let proposal = try await transactionEncoder.proposeTransfer(
-            accountIndex: accountIndex,
-            recipient: recipient.stringEncoded,
-            amount: amount,
-            memoBytes: memo?.asMemoBytes()
-        )
-
-        return proposal
-    }
-
-    public func proposeShielding(
-        accountIndex: Int,
-        shieldingThreshold: Zatoshi,
-        memo: Memo,
-        transparentReceiver: TransparentAddress? = nil
-    ) async throws -> Proposal? {
-        try throwIfUnprepared()
-
-        return try await transactionEncoder.proposeShielding(
-            accountIndex: accountIndex,
-            shieldingThreshold: shieldingThreshold,
-            memoBytes: memo.asMemoBytes(),
-            transparentReceiver: transparentReceiver?.stringEncoded
-        )
-    }
-
-    public func proposefulfillingPaymentURI(
-        _ uri: String,
-        accountIndex: Int
-    ) async throws -> Proposal {
-        do {
-            try throwIfUnprepared()
-            return try await transactionEncoder.proposeFulfillingPaymentFromURI(
-                uri,
-                accountIndex: accountIndex
-            )
-        } catch ZcashError.rustCreateToAddress(let error) {
-            throw ZcashError.rustProposeTransferFromURI(error)
-        } catch {
-            throw error
-        }
-    }
-
-    public func createProposedTransactions(
-        proposal: Proposal,
-        spendingKey: UnifiedSpendingKey
-    ) async throws -> AsyncThrowingStream<TransactionSubmitResult, Error> {
-        try throwIfUnprepared()
-
-        try await SaplingParameterDownloader.downloadParamsIfnotPresent(
-            spendURL: initializer.spendParamsURL,
-            spendSourceURL: initializer.saplingParamsSourceURL.spendParamFileURL,
-            outputURL: initializer.outputParamsURL,
-            outputSourceURL: initializer.saplingParamsSourceURL.outputParamFileURL,
-            logger: logger
-        )
-
-        let transactions = try await transactionEncoder.createProposedTransactions(
-            proposal: proposal,
-            spendingKey: spendingKey
-        )
-        var iterator = transactions.makeIterator()
-        var submitFailed = false
-
-        return AsyncThrowingStream() {
-            guard let transaction = iterator.next() else { return nil }
-
-            if submitFailed {
-                return .notAttempted(txId: transaction.rawID)
-            } else {
-                let encodedTransaction = try transaction.encodedTransaction()
-
-                do {
-                    try await self.transactionEncoder.submit(transaction: encodedTransaction)
-                    return TransactionSubmitResult.success(txId: transaction.rawID)
-                } catch ZcashError.serviceSubmitFailed(let error) {
-                    submitFailed = true
-                    return TransactionSubmitResult.grpcFailure(txId: transaction.rawID, error: error)
-                } catch TransactionEncoderError.submitError(let code, let message) {
-                    submitFailed = true
-                    return TransactionSubmitResult.submitFailure(txId: transaction.rawID, code: code, description: message)
-                }
-            }
-        }
-    }
 
     public func sendToAddress(
         spendingKey: UnifiedSpendingKey,
@@ -389,30 +313,19 @@ public class SDKSynchronizer: Synchronizer {
 
         // let's see if there are funds to shield
         let accountIndex = Int(spendingKey.account)
+        let tBalance = try await self.getTransparentBalance(accountIndex: accountIndex)
 
-        guard let tBalance = try await self.getAccountBalance(accountIndex: accountIndex)?.unshielded else {
-            throw ZcashError.synchronizerSpendingKeyDoesNotBelongToTheWallet
-        }
-
-        // Verify that at least there are funds for the fee. Ideally this logic will be improved by the shielding wallet.
-        guard tBalance >= self.network.constants.defaultFee() else {
+        // Verify that at least there are funds for the fee. Ideally this logic will be improved by the shielding   wallet.
+        guard tBalance.verified >= self.network.constants.defaultFee(for: await self.latestBlocksDataProvider.latestScannedHeight) else {
             throw ZcashError.synchronizerShieldFundsInsuficientTransparentFunds
         }
 
-        guard let proposal = try await transactionEncoder.proposeShielding(
-            accountIndex: Int(spendingKey.account),
+        let transaction = try await transactionEncoder.createShieldingTransaction(
+            spendingKey: spendingKey,
             shieldingThreshold: shieldingThreshold,
             memoBytes: memo.asMemoBytes(),
-            transparentReceiver: nil
-        ) else { throw ZcashError.synchronizerShieldFundsInsuficientTransparentFunds }
-
-        let transactions = try await transactionEncoder.createProposedTransactions(
-            proposal: proposal,
-            spendingKey: spendingKey
+            from: Int(spendingKey.account)
         )
-
-        assert(transactions.count == 1, "Rust backend doesn't produce multiple transactions yet")
-        let transaction = transactions[0]
 
         let encodedTx = try transaction.encodedTransaction()
 
@@ -434,25 +347,18 @@ public class SDKSynchronizer: Synchronizer {
                 throw ZcashError.synchronizerSendMemoToTransparentAddress
             }
 
-            let proposal = try await transactionEncoder.proposeTransfer(
-                accountIndex: Int(spendingKey.account),
-                recipient: recipient.stringEncoded,
-                amount: zatoshi,
-                memoBytes: memo?.asMemoBytes()
+            let transaction = try await transactionEncoder.createTransaction(
+                spendingKey: spendingKey,
+                zatoshi: zatoshi,
+                to: recipient.stringEncoded,
+                memoBytes: memo?.asMemoBytes(),
+                from: Int(spendingKey.account)
             )
-
-            let transactions = try await transactionEncoder.createProposedTransactions(
-                proposal: proposal,
-                spendingKey: spendingKey
-            )
-
-            assert(transactions.count == 1, "Rust backend doesn't produce multiple transactions yet")
-            let transaction = transactions[0]
 
             let encodedTransaction = try transaction.encodedTransaction()
 
             try await transactionEncoder.submit(transaction: encodedTransaction)
-            
+
             return transaction
         } catch {
             throw error
@@ -461,6 +367,12 @@ public class SDKSynchronizer: Synchronizer {
 
     public func allReceivedTransactions() async throws -> [ZcashTransaction.Overview] {
         try await transactionRepository.findReceived(offset: 0, limit: Int.max)
+    }
+
+    public func allPendingTransactions() async throws -> [ZcashTransaction.Overview] {
+        let latestScannedHeight = self.latestState.latestScannedHeight
+
+        return try await transactionRepository.findPendingTransactions(latestHeight: latestScannedHeight, offset: 0, limit: .max)
     }
 
     public func allTransactions() async throws -> [ZcashTransaction.Overview] {
@@ -479,24 +391,39 @@ public class SDKSynchronizer: Synchronizer {
         PagedTransactionRepositoryBuilder.build(initializer: initializer, kind: .all)
     }
 
-    public func getMemos(for rawID: Data) async throws -> [Memo] {
-        return try await transactionRepository.findMemos(for: rawID)
-    }
-
     public func getMemos(for transaction: ZcashTransaction.Overview) async throws -> [Memo] {
-        return try await transactionRepository.findMemos(for: transaction.rawID)
+        return try await transactionRepository.findMemos(for: transaction)
     }
 
     public func getRecipients(for transaction: ZcashTransaction.Overview) async -> [TransactionRecipient] {
-        return (try? await transactionRepository.getRecipients(for: transaction.rawID)) ?? []
+        return (try? await transactionRepository.getRecipients(for: transaction.id)) ?? []
     }
 
     public func getTransactionOutputs(for transaction: ZcashTransaction.Overview) async -> [ZcashTransaction.Output] {
-        return (try? await transactionRepository.getTransactionOutputs(for: transaction.rawID)) ?? []
+        return (try? await transactionRepository.getTransactionOutputs(for: transaction.id)) ?? []
     }
 
     public func latestHeight() async throws -> BlockHeight {
-        try await blockProcessor.latestHeight()
+        try await blockProcessor.blockDownloaderService.latestBlockHeight()
+    }
+
+    public func latestUTXOs(address: String) async throws -> [UnspentTransactionOutputEntity] {
+        try throwIfUnprepared()
+
+        guard initializer.isValidTransparentAddress(address) else {
+            throw ZcashError.synchronizerLatestUTXOsInvalidTAddress
+        }
+
+        let stream = initializer.lightWalletService.fetchUTXOs(for: address, height: network.constants.saplingActivationHeight)
+
+        // swiftlint:disable:next array_constructor
+        var utxos: [UnspentTransactionOutputEntity] = []
+        for try await transactionEntity in stream {
+            utxos.append(transactionEntity)
+        }
+        try await self.utxoRepository.clearAll(address: address)
+        try await self.utxoRepository.store(utxos: utxos)
+        return utxos
     }
 
     public func refreshUTXOs(address: TransparentAddress, from height: BlockHeight) async throws -> RefreshedUTXOs {
@@ -504,8 +431,16 @@ public class SDKSynchronizer: Synchronizer {
         return try await blockProcessor.refreshUTXOs(tAddress: address, startHeight: height)
     }
 
-    public func getAccountBalance(accountIndex: Int = 0) async throws -> AccountBalance? {
-        try await initializer.rustBackend.getWalletSummary()?.accountBalances[UInt32(accountIndex)]
+    public func getShieldedBalance(accountIndex: Int = 0) async throws -> Zatoshi {
+        let balance = try await initializer.rustBackend.getBalance(account: Int32(accountIndex))
+
+        return Zatoshi(balance)
+    }
+
+    public func getShieldedVerifiedBalance(accountIndex: Int = 0) async throws -> Zatoshi {
+        let balance = try await initializer.rustBackend.getVerifiedBalance(account: Int32(accountIndex))
+
+        return Zatoshi(balance)
     }
 
     public func getUnifiedAddress(accountIndex: Int) async throws -> UnifiedAddress {
@@ -518,6 +453,11 @@ public class SDKSynchronizer: Synchronizer {
 
     public func getTransparentAddress(accountIndex: Int) async throws -> TransparentAddress {
         try await blockProcessor.getTransparentAddress(accountIndex: accountIndex)
+    }
+
+    /// Returns the last stored transparent balance
+    public func getTransparentBalance(accountIndex: Int) async throws -> WalletBalance {
+        try await blockProcessor.getTransparentBalance(accountIndex: accountIndex)
     }
 
     // MARK: Rewind
@@ -563,11 +503,7 @@ public class SDKSynchronizer: Synchronizer {
                 }
             )
 
-            do {
-                try await blockProcessor.rewind(context: context)
-            } catch {
-                subject.send(completion: .failure(error))
-            }
+            await blockProcessor.rewind(context: context)
         }
         return subject.eraseToAnyPublisher()
     }
@@ -597,115 +533,30 @@ public class SDKSynchronizer: Synchronizer {
                 }
             )
 
-            do {
-                try await blockProcessor.wipe(context: context)
-            } catch {
-                subject.send(completion: .failure(error))
-            }
+            await blockProcessor.wipe(context: context)
         }
 
         return subject.eraseToAnyPublisher()
     }
 
-    public func isSeedRelevantToAnyDerivedAccount(seed: [UInt8]) async throws -> Bool {
-        try await initializer.rustBackend.isSeedRelevantToAnyDerivedAccount(seed: seed)
-    }
-
-    // MARK: Server switch
-
-    public func switchTo(endpoint: LightWalletEndpoint) async throws {
-        // Stop synchronization
-        let status = await self.status
-        if status != .stopped && status != .disconnected {
-            await blockProcessor.stop()
-        }
-
-        // Validation of the server is first because any custom endpoint can be passed here
-        // Extra instance of the service is created with lower timeout ofr a single call
-        initializer.container.register(type: LightWalletService.self, isSingleton: true) { _ in
-            LightWalletGRPCService(
-                host: endpoint.host,
-                port: endpoint.port,
-                secure: endpoint.secure,
-                singleCallTimeout: 5000,
-                streamingCallTimeout: endpoint.streamingCallTimeoutInMillis
-            )
-        }
-
-        let validateSever = ValidateServerAction(
-            container: initializer.container,
-            configProvider: CompactBlockProcessor.ConfigProvider(config: await blockProcessor.config)
-        )
- 
-        do {
-            _ = try await validateSever.run(with: ActionContextImpl(state: .idle)) { _ in }
-        } catch {
-            throw ZcashError.synchronizerServerSwitch
-        }
-        
-        // The `ValidateServerAction` confirmed the server is ok and we can continue
-        // final instance of the service will be instantiated and propagated to the all parties
-
-        // SWITCH TO NEW ENDPOINT
-        
-        // LightWalletService dependency update
-        initializer.container.register(type: LightWalletService.self, isSingleton: true) { _ in
-            LightWalletGRPCService(endpoint: endpoint)
-        }
-
-        // DEPENDENCIES
-
-        // BlockDownloaderService dependency update
-        initializer.container.register(type: BlockDownloaderService.self, isSingleton: true) { di in
-            let service = di.resolve(LightWalletService.self)
-            let storage = di.resolve(CompactBlockRepository.self)
-
-            return BlockDownloaderServiceImpl(service: service, storage: storage)
-        }
-
-        // LatestBlocksDataProvider dependency update
-        initializer.container.register(type: LatestBlocksDataProvider.self, isSingleton: true) { di in
-            let service = di.resolve(LightWalletService.self)
-            let rustBackend = di.resolve(ZcashRustBackendWelding.self)
-
-            return LatestBlocksDataProviderImpl(service: service, rustBackend: rustBackend)
-        }
-        
-        // CompactBlockProcessor dependency update
-        Dependencies.setupCompactBlockProcessor(
-            in: initializer.container,
-            config: await blockProcessor.config
-        )
-        
-        // INITIALIZER
-        initializer.lightWalletService = initializer.container.resolve(LightWalletService.self)
-        initializer.blockDownloaderService = initializer.container.resolve(BlockDownloaderService.self)
-        initializer.endpoint = endpoint
-
-        // SELF
-        self.latestBlocksDataProvider = initializer.container.resolve(LatestBlocksDataProvider.self)
-        
-        // COMPACT BLOCK PROCESSOR
-        await blockProcessor.updateService(initializer.container)
-        
-        // Start synchronization
-        if status != .unprepared {
-            try await start(retry: true)
-        }
-    }
-
     // MARK: notify state
 
     private func snapshotState(status: InternalSyncStatus) async -> SynchronizerState {
-        await SynchronizerState(
+        return await SynchronizerState(
             syncSessionID: syncSession.value,
-            accountBalance: try? await getAccountBalance(),
+            shieldedBalance: WalletBalance(
+                verified: (try? await getShieldedVerifiedBalance()) ?? .zero,
+                total: (try? await getShieldedBalance()) ?? .zero
+            ),
+            transparentBalance: (try? await blockProcessor.getTransparentBalance(accountIndex: 0)) ?? .zero,
             internalSyncStatus: status,
-            latestBlockHeight: latestBlocksDataProvider.latestBlockHeight
+            latestScannedHeight: latestBlocksDataProvider.latestScannedHeight,
+            latestBlockHeight: latestBlocksDataProvider.latestBlockHeight,
+            latestScannedTime: latestBlocksDataProvider.latestScannedTime
         )
     }
 
-    private func notify(oldStatus: InternalSyncStatus, newStatus: InternalSyncStatus, updateExternalStatus: Bool = true) async {
+    private func notify(oldStatus: InternalSyncStatus, newStatus: InternalSyncStatus) async {
         guard oldStatus != newStatus else { return }
 
         let newState: SynchronizerState
@@ -728,10 +579,7 @@ public class SDKSynchronizer: Synchronizer {
         }
 
         latestState = newState
-
-        if updateExternalStatus {
-            updateStateStream(with: latestState)
-        }
+        updateStateStream(with: latestState)
     }
 
     private func updateStateStream(with newState: SynchronizerState) {
@@ -765,6 +613,12 @@ extension SDKSynchronizer {
             (try? await allReceivedTransactions()) ?? []
         }
     }
+
+    public var pendingTransactions: [ZcashTransaction.Overview] {
+        get async {
+            (try? await allPendingTransactions()) ?? []
+        }
+    }
 }
 
 extension InternalSyncStatus {
@@ -772,6 +626,8 @@ extension InternalSyncStatus {
         switch (self, otherStatus) {
         case (.unprepared, .unprepared): return false
         case (.syncing, .syncing): return false
+        case (.enhancing, .enhancing): return false
+        case (.fetching, .fetching): return false
         case (.synced, .synced): return false
         case (.stopped, .stopped): return false
         case (.disconnected, .disconnected): return false
@@ -803,5 +659,29 @@ extension SessionTicker {
         default:
             return false
         }
+    }
+}
+
+protocol UnspentTransactionOutputRepository {
+    func initialise() async throws
+    func getAll(address: String?) async throws -> [UnspentTransactionOutputEntity]
+    func balance(address: String, latestHeight: BlockHeight) async throws -> WalletBalance
+    func store(utxos: [UnspentTransactionOutputEntity]) async throws
+    func clearAll(address: String?) async throws
+}
+
+public struct WalletBalance: Equatable {
+    public let verified: Zatoshi
+    public let total: Zatoshi
+    
+    public init(verified: Zatoshi, total: Zatoshi) {
+        self.verified = verified
+        self.total = total
+    }
+}
+
+public extension WalletBalance {
+    static var zero: WalletBalance {
+        Self(verified: .zero, total: .zero)
     }
 }
