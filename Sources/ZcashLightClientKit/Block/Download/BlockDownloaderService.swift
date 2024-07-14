@@ -1,6 +1,6 @@
 //
 //  BlockDownloader.swift
-//  ZcashLightClientKit
+//  PirateLightClientKit
 //
 //  Created by Francisco Gindre on 17/09/2019.
 //  Copyright © 2019 Electric Coin Company. All rights reserved.
@@ -27,6 +27,11 @@ protocol BlockDownloaderService {
     Restore the download progress up to the given height.
     */
     func rewind(to height: BlockHeight) async throws
+
+    /**
+    Returns the highest block in next download group
+    */
+    func getLiteWalletBlockGroup(height: BlockHeight) async throws -> BlockHeight
 
     /**
     Returns the height of the latest compact block stored locally.
@@ -84,6 +89,10 @@ extension BlockDownloaderServiceImpl: BlockDownloaderService {
     
     func fetchUnspentTransactionOutputs(tAddress: String, startHeight: BlockHeight) -> AsyncThrowingStream<UnspentTransactionOutputEntity, Error> {
         lightwalletService.fetchUTXOs(for: tAddress, height: startHeight)
+    }
+
+    func getLiteWalletBlockGroup(height: BlockHeight) async throws -> BlockHeight {
+        try await lightwalletService.getLiteWalletBlockGroup(height: height)
     }
     
     func latestBlockHeight() async throws -> BlockHeight {

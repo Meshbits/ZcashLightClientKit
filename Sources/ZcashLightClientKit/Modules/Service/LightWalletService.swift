@@ -153,6 +153,9 @@ protocol LightWalletService: AnyObject {
     /// - Throws: `serviceLatestBlockHeightFailed` when GRPC call fails.
     func latestBlock() async throws -> BlockID
 
+    /// Return the highest block in the next download group.
+    func getLiteWalletBlockGroup(height: BlockHeight) async throws -> BlockHeight
+
     /// Return the latest block height known to the service.
     /// - Throws: `serviceLatestBlockFailed` when GRPC call fails.
     func latestBlockHeight() async throws -> BlockHeight
@@ -176,7 +179,6 @@ protocol LightWalletService: AnyObject {
     func fetchTransaction(txId: Data) async throws -> ZcashTransaction.Fetched
 
     /// - Throws: `serviceFetchUTXOsFailed` when GRPC call fails.
-    // sourcery: mockedName="fetchUTXOsSingle"
     func fetchUTXOs(for tAddress: String, height: BlockHeight) -> AsyncThrowingStream<UnspentTransactionOutputEntity, Error>
 
     /// - Throws: `serviceFetchUTXOsFailed` when GRPC call fails.
@@ -189,13 +191,4 @@ protocol LightWalletService: AnyObject {
     ) -> AsyncThrowingStream<ZcashCompactBlock, Error>
 
     func closeConnection()
-    
-    /// Returns a stream of information about roots of subtrees of the Sapling and Orchard
-    /// note commitment trees.
-    ///
-    /// - Parameters:
-    ///   - request: Request to send to GetSubtreeRoots.
-    func getSubtreeRoots(_ request: GetSubtreeRootsArg) -> AsyncThrowingStream<SubtreeRoot, Error>
-
-    func getTreeState(_ id: BlockID) async throws -> TreeState
 }
