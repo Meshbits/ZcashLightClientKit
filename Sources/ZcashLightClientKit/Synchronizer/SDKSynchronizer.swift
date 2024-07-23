@@ -9,6 +9,32 @@
 import Foundation
 import Combine
 
+public struct WalletBalance: Equatable {
+    public let verified: Zatoshi
+    public let total: Zatoshi
+    
+    public init(verified: Zatoshi, total: Zatoshi) {
+        self.verified = verified
+        self.total = total
+    }
+}
+
+public extension WalletBalance {
+    static var zero: WalletBalance {
+        Self(verified: .zero, total: .zero)
+    }
+}
+
+
+protocol UnspentTransactionOutputRepository {
+    func initialise() async throws
+    func getAll(address: String?) async throws -> [UnspentTransactionOutputEntity]
+    func balance(address: String, latestHeight: BlockHeight) async throws -> WalletBalance
+    func store(utxos: [UnspentTransactionOutputEntity]) async throws
+    func clearAll(address: String?) async throws
+}
+
+
 /// Synchronizer implementation for UIKit and iOS 13+
 // swiftlint:disable type_body_length
 public class SDKSynchronizer: Synchronizer {
@@ -659,29 +685,5 @@ extension SessionTicker {
         default:
             return false
         }
-    }
-}
-
-protocol UnspentTransactionOutputRepository {
-    func initialise() async throws
-    func getAll(address: String?) async throws -> [UnspentTransactionOutputEntity]
-    func balance(address: String, latestHeight: BlockHeight) async throws -> WalletBalance
-    func store(utxos: [UnspentTransactionOutputEntity]) async throws
-    func clearAll(address: String?) async throws
-}
-
-public struct WalletBalance: Equatable {
-    public let verified: Zatoshi
-    public let total: Zatoshi
-    
-    public init(verified: Zatoshi, total: Zatoshi) {
-        self.verified = verified
-        self.total = total
-    }
-}
-
-public extension WalletBalance {
-    static var zero: WalletBalance {
-        Self(verified: .zero, total: .zero)
     }
 }

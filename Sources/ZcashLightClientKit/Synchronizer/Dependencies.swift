@@ -14,13 +14,8 @@ enum Dependencies {
         alias: ZcashSynchronizerAlias,
         networkType: NetworkType,
         endpoint: LightWalletEndpoint,
-        loggingPolicy: Initializer.LoggingPolicy = .default(.debug),
-        enableBackendTracing: Bool = false
+        loggingPolicy: Initializer.LoggingPolicy = .default(.debug)
     ) {
-        container.register(type: CheckpointSource.self, isSingleton: true) { _ in
-            CheckpointSourceFactory.fromBundle(for: networkType)
-        }
-
         container.register(type: Logger.self, isSingleton: true) { _ in
             let logger: Logger
             switch loggingPolicy {
@@ -46,7 +41,7 @@ enum Dependencies {
         }
 
         container.register(type: LightWalletService.self, isSingleton: true) { _ in
-            LightWalletGRPCService(endpoint: endpoint)
+            return LightWalletGRPCService(endpoint: endpoint)
         }
 
         container.register(type: TransactionRepository.self, isSingleton: true) { _ in
@@ -78,52 +73,36 @@ enum Dependencies {
         }
 
         container.register(type: SDKMetrics.self, isSingleton: true) { _ in
-            SDKMetricsImpl()
+            SDKMetrics()
         }
 
         container.register(type: LatestBlocksDataProvider.self, isSingleton: true) { di in
             let service = di.resolve(LightWalletService.self)
-            let rustBackend = di.resolve(ZcashRustBackendWelding.self)
+            let transactionRepository = di.resolve(TransactionRepository.self)
 
-            return LatestBlocksDataProviderImpl(service: service, rustBackend: rustBackend)
+            return LatestBlocksDataProviderImpl(service: service, transactionRepository: transactionRepository)
         }
 
         container.register(type: SyncSessionIDGenerator.self, isSingleton: false) { _ in
             UniqueSyncSessionIDGenerator()
         }
-        
-        container.register(type: ZcashFileManager.self, isSingleton: true) { _ in
-            FileManager.default
-        }
-        
-        container.register(type: TransactionEncoder.self, isSingleton: true) { di in
-            let service = di.resolve(LightWalletService.self)
-            let logger = di.resolve(Logger.self)
-            let transactionRepository = di.resolve(TransactionRepository.self)
-            let rustBackend = di.resolve(ZcashRustBackendWelding.self)
 
-            return WalletTransactionEncoder(
-                rustBackend: rustBackend,
-                dataDb: urls.dataDbURL,
-                fsBlockDbRoot: urls.fsBlockDbRoot,
-                service: service,
-                repository: transactionRepository,
-                outputParams: urls.outputParamsURL,
-                spendParams: urls.spendParamsURL,
-                networkType: networkType,
-                logger: logger
-            )
+        container.register(type: InternalSyncProgress.self, isSingleton: true) { di in
+            let logger = di.resolve(Logger.self)
+            return InternalSyncProgress(alias: alias, storage: UserDefaults.standard, logger: logger)
         }
     }
     
     static func setupCompactBlockProcessor(
         in container: DIContainer,
-        config: CompactBlockProcessor.Configuration
+        config: CompactBlockProcessor.Configuration,
+        accountRepository: AccountRepository
     ) {
         container.register(type: BlockDownloader.self, isSingleton: true) { di in
             let service = di.resolve(LightWalletService.self)
             let blockDownloaderService = di.resolve(BlockDownloaderService.self)
             let storage = di.resolve(CompactBlockRepository.self)
+            let internalSyncProgress = di.resolve(InternalSyncProgress.self)
             let metrics = di.resolve(SDKMetrics.self)
             let logger = di.resolve(Logger.self)
 
@@ -131,35 +110,49 @@ enum Dependencies {
                 service: service,
                 downloaderService: blockDownloaderService,
                 storage: storage,
+                internalSyncProgress: internalSyncProgress,
+                metrics: metrics,
+                logger: logger
+            )
+        }
+        
+        container.register(type: BlockValidator.self, isSingleton: true) { di in
+            let rustBackend = di.resolve(ZcashRustBackendWelding.self)
+            let metrics = di.resolve(SDKMetrics.self)
+            let logger = di.resolve(Logger.self)
+
+            return BlockValidatorImpl(
+                rustBackend: rustBackend,
                 metrics: metrics,
                 logger: logger
             )
         }
 
         container.register(type: BlockScanner.self, isSingleton: true) { di in
-            let service = di.resolve(LightWalletService.self)
             let rustBackend = di.resolve(ZcashRustBackendWelding.self)
             let transactionRepository = di.resolve(TransactionRepository.self)
             let metrics = di.resolve(SDKMetrics.self)
             let logger = di.resolve(Logger.self)
+            let latestBlocksDataProvider = di.resolve(LatestBlocksDataProvider.self)
 
             let blockScannerConfig = BlockScannerConfig(
                 networkType: config.network.networkType,
-                scanningBatchSize: config.batchSize
+                scanningBatchSize: config.scanningBatchSize
             )
 
             return BlockScannerImpl(
                 config: blockScannerConfig,
                 rustBackend: rustBackend,
-                service: service,
                 transactionRepository: transactionRepository,
                 metrics: metrics,
-                logger: logger
+                logger: logger,
+                latestBlocksDataProvider: latestBlocksDataProvider
             )
         }
         
         container.register(type: BlockEnhancer.self, isSingleton: true) { di in
             let blockDownloaderService = di.resolve(BlockDownloaderService.self)
+            let internalSyncProgress = di.resolve(InternalSyncProgress.self)
             let rustBackend = di.resolve(ZcashRustBackendWelding.self)
             let transactionRepository = di.resolve(TransactionRepository.self)
             let metrics = di.resolve(SDKMetrics.self)
@@ -167,6 +160,7 @@ enum Dependencies {
 
             return BlockEnhancerImpl(
                 blockDownloaderService: blockDownloaderService,
+                internalSyncProgress: internalSyncProgress,
                 rustBackend: rustBackend,
                 transactionRepository: transactionRepository,
                 metrics: metrics,
@@ -177,13 +171,16 @@ enum Dependencies {
         container.register(type: UTXOFetcher.self, isSingleton: true) { di in
             let blockDownloaderService = di.resolve(BlockDownloaderService.self)
             let utxoFetcherConfig = UTXOFetcherConfig(walletBirthdayProvider: config.walletBirthdayProvider)
+            let internalSyncProgress = di.resolve(InternalSyncProgress.self)
             let rustBackend = di.resolve(ZcashRustBackendWelding.self)
             let metrics = di.resolve(SDKMetrics.self)
             let logger = di.resolve(Logger.self)
             
             return UTXOFetcherImpl(
+                accountRepository: accountRepository,
                 blockDownloaderService: blockDownloaderService,
                 config: utxoFetcherConfig,
+                internalSyncProgress: internalSyncProgress,
                 rustBackend: rustBackend,
                 metrics: metrics,
                 logger: logger

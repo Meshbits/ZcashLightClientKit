@@ -54,72 +54,81 @@ class WalletTransactionEncoder: TransactionEncoder {
             logger: initializer.logger
         )
     }
-
-    func proposeTransfer(
-        accountIndex: Int,
-        recipient: String,
-        amount: Zatoshi,
-        memoBytes: MemoBytes?
-    ) async throws -> Proposal {
-        let proposal = try await rustBackend.proposeTransfer(
-            account: Int32(accountIndex),
-            to: recipient,
-            value: amount.amount,
-            memo: memoBytes
-        )
-
-        return Proposal(inner: proposal)
-    }
-
-    func proposeShielding(
-        accountIndex: Int,
-        shieldingThreshold: Zatoshi,
+    
+    func createTransaction(
+        spendingKey: UnifiedSpendingKey,
+        zatoshi: Zatoshi,
+        to address: String,
         memoBytes: MemoBytes?,
-        transparentReceiver: String? = nil
-    ) async throws -> Proposal? {
-        guard let proposal = try await rustBackend.proposeShielding(
-            account: Int32(accountIndex),
-            memo: memoBytes,
-            shieldingThreshold: shieldingThreshold,
-            transparentReceiver: transparentReceiver
-        ) else { return nil }
-
-        return Proposal(inner: proposal)
-    }
-
-    func proposeFulfillingPaymentFromURI(
-        _ uri: String,
-        accountIndex: Int
-    ) async throws -> Proposal {
-        let proposal = try await rustBackend.proposeTransferFromURI(
-            uri,
-            account: Int32(accountIndex)
+        from accountIndex: Int
+    ) async throws -> ZcashTransaction.Overview {
+        let txId = try await createSpend(
+            spendingKey: spendingKey,
+            zatoshi: zatoshi,
+            to: address,
+            memoBytes: memoBytes,
+            from: accountIndex
         )
-        return Proposal(inner: proposal)
-    }
 
-    func createProposedTransactions(
-        proposal: Proposal,
-        spendingKey: UnifiedSpendingKey
-    ) async throws -> [ZcashTransaction.Overview] {
+        logger.debug("transaction id: \(txId)")
+        return try await repository.find(id: txId)
+    }
+    
+    func createSpend(
+        spendingKey: UnifiedSpendingKey,
+        zatoshi: Zatoshi,
+        to address: String,
+        memoBytes: MemoBytes?,
+        from accountIndex: Int
+    ) async throws -> Int {
         guard ensureParams(spend: self.spendParamsURL, output: self.outputParamsURL) else {
             throw ZcashError.walletTransEncoderCreateTransactionMissingSaplingParams
         }
 
-        let txIds = try await rustBackend.createProposedTransactions(
-            proposal: proposal.inner,
-            usk: spendingKey
+        let txId = try await rustBackend.createToAddress(
+            usk: spendingKey,
+            to: address,
+            value: zatoshi.amount,
+            memo: memoBytes
         )
 
-        logger.debug("transaction ids: \(txIds)")
+        return Int(txId)
+    }
+    
+    func createShieldingTransaction(
+        spendingKey: UnifiedSpendingKey,
+        shieldingThreshold: Zatoshi,
+        memoBytes: MemoBytes?,
+        from accountIndex: Int
+    ) async throws -> ZcashTransaction.Overview {
+        let txId = try await createShieldingSpend(
+            spendingKey: spendingKey,
+            shieldingThreshold: shieldingThreshold,
+            memo: memoBytes,
+            accountIndex: accountIndex
+        )
+        
+        logger.debug("transaction id: \(txId)")
+        return try await repository.find(id: txId)
+    }
 
-        var txs: [ZcashTransaction.Overview] = []
-
-        for txId in txIds {
-            txs.append(try await repository.find(rawID: txId))
+    func createShieldingSpend(
+        spendingKey: UnifiedSpendingKey,
+        shieldingThreshold: Zatoshi,
+        memo: MemoBytes?,
+        accountIndex: Int
+    ) async throws -> Int {
+        guard ensureParams(spend: self.spendParamsURL, output: self.outputParamsURL) else {
+            throw ZcashError.walletTransEncoderShieldFundsMissingSaplingParams
         }
-
-        return txs
+        
+        let txId = try await rustBackend.shieldFunds(
+            usk: spendingKey,
+            memo: memo,
+            shieldingThreshold: shieldingThreshold
+        )
+                
+        return Int(txId)
     }
 
     func submit(
@@ -136,7 +145,7 @@ class WalletTransactionEncoder: TransactionEncoder {
         let readableSpend = FileManager.default.isReadableFile(atPath: spend.path)
         let readableOutput = FileManager.default.isReadableFile(atPath: output.path)
         
-        // TODO: [#713] change this to something that makes sense, https://github.com/zcash/ZcashLightClientKit/issues/713
+        // TODO: [#713] change this to something that makes sense, https://github.com/zcash/PirateLightClientKit/issues/713
         return readableSpend && readableOutput
     }
 

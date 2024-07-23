@@ -35,34 +35,50 @@ public struct SynchronizerState: Equatable {
     /// given how application lifecycle varies between OS Versions, platforms, etc.
     /// SyncSessionIDs are provided to users
     public var syncSessionID: UUID
-    /// account balance known to this synchronizer given the data that has processed locally
-    public var accountBalance: AccountBalance?
+    /// shielded balance known to this synchronizer given the data that has processed locally
+    public var shieldedBalance: WalletBalance
+    /// transparent balance known to this synchronizer given the data that has processed locally
+    public var transparentBalance: WalletBalance
     /// status of the whole sync process
     var internalSyncStatus: InternalSyncStatus
     public var syncStatus: SyncStatus
+    /// height of the latest scanned block known to this synchronizer.
+    public var latestScannedHeight: BlockHeight
     /// height of the latest block on the blockchain known to this synchronizer.
     public var latestBlockHeight: BlockHeight
+    /// timestamp of the latest scanned block on the blockchain known to this synchronizer.
+    /// The anchor point is timeIntervalSince1970
+    public var latestScannedTime: TimeInterval
 
     /// Represents a synchronizer that has made zero progress hasn't done a sync attempt
     public static var zero: SynchronizerState {
         SynchronizerState(
             syncSessionID: .nullID,
-            accountBalance: .zero,
+            shieldedBalance: .zero,
+            transparentBalance: .zero,
             internalSyncStatus: .unprepared,
-            latestBlockHeight: .zero
+            latestScannedHeight: .zero,
+            latestBlockHeight: .zero,
+            latestScannedTime: 0
         )
     }
     
     init(
         syncSessionID: UUID,
-        accountBalance: AccountBalance?,
+        shieldedBalance: WalletBalance,
+        transparentBalance: WalletBalance,
         internalSyncStatus: InternalSyncStatus,
-        latestBlockHeight: BlockHeight
+        latestScannedHeight: BlockHeight,
+        latestBlockHeight: BlockHeight,
+        latestScannedTime: TimeInterval
     ) {
         self.syncSessionID = syncSessionID
-        self.accountBalance = accountBalance
+        self.shieldedBalance = shieldedBalance
+        self.transparentBalance = transparentBalance
         self.internalSyncStatus = internalSyncStatus
+        self.latestScannedHeight = latestScannedHeight
         self.latestBlockHeight = latestBlockHeight
+        self.latestScannedTime = latestScannedTime
         self.syncStatus = internalSyncStatus.mapToSyncStatus()
     }
 }
@@ -457,6 +473,8 @@ extension InternalSyncStatus {
         switch (lhs, rhs) {
         case (.unprepared, .unprepared): return true
         case let (.syncing(lhsProgress), .syncing(rhsProgress)): return lhsProgress == rhsProgress
+        case let (.enhancing(lhsProgress), .enhancing(rhsProgress)): return lhsProgress == rhsProgress
+        case (.fetching, .fetching): return true
         case (.synced, .synced): return true
         case (.stopped, .stopped): return true
         case (.disconnected, .disconnected): return true
@@ -466,11 +484,20 @@ extension InternalSyncStatus {
     }
 }
 
+
 extension InternalSyncStatus {
-    init(_ blockProcessorProgress: Float) {
-        self = .syncing(blockProcessorProgress)
+    init(_ blockProcessorProgress: CompactBlockProgress) {
+        switch blockProcessorProgress {
+        case .syncing(let progressReport):
+            self = .syncing(progressReport)
+        case .enhance(let enhancingReport):
+            self = .enhancing(enhancingReport)
+        case .fetch(let fetchingProgress):
+            self = .fetching(fetchingProgress)
+        }
     }
 }
+
 
 extension InternalSyncStatus {
     func mapToSyncStatus() -> SyncStatus {
@@ -478,11 +505,15 @@ extension InternalSyncStatus {
         case .unprepared:
             return .unprepared
         case .syncing(let progress):
-            return .syncing(progress)
+            return .syncing(0.9 * progress.progress)
+        case .enhancing(let progress):
+            return .syncing(0.9 + 0.08 * progress.progress)
+        case .fetching(let progress):
+            return .syncing(0.98 + 0.02 * progress)
         case .synced:
             return .upToDate
         case .stopped:
-            return .stopped
+            return .upToDate
         case .disconnected:
             return .error(ZcashError.synchronizerDisconnected)
         case .error(let error):

@@ -1155,6 +1155,7 @@ internal struct CompactTxStreamerAsyncClient: CompactTxStreamerAsyncClientProtoc
   }
 }
 
+
 internal protocol CompactTxStreamerClientInterceptorFactoryProtocol: Sendable {
 
   /// - Returns: Interceptors to use when invoking 'getLatestBlock'.
